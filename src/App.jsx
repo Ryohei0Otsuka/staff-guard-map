@@ -1,118 +1,108 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  AlertTriangle,
-  CalendarDays,
-  CheckCircle2,
-  ClipboardList,
-  GripVertical,
-  Plus,
-  ShieldCheck,
-  Trash2,
-  Users
-} from "lucide-react";
 import "./App.css";
 
-const STORAGE_KEY = "staff-guard-map-v1";
+const STORAGE_KEY = "staff-guard-map-shift-table-v3";
 
-const GROUPS = {
-  working: {
-    label: "出勤",
-    shortLabel: "出勤",
+const SHIFT_TYPES = {
+  day: {
+    label: "日勤",
+    shortLabel: "日",
     count: 1,
-    description: "通常稼働できる人員",
-    tone: "working"
+    next: "night"
+  },
+  night: {
+    label: "夜勤",
+    shortLabel: "夜",
+    count: 1,
+    next: "off"
   },
   off: {
     label: "休日",
-    shortLabel: "休日",
+    shortLabel: "休",
     count: 0,
-    description: "稼働前提にしない人員",
-    tone: "off"
-  },
-  buffer: {
-    label: "補填候補",
-    shortLabel: "候補",
-    count: 0.5,
-    description: "欠員時に調整可能性を持つ候補枠",
-    tone: "buffer"
+    next: "day"
   }
 };
 
 const INITIAL_STAFF = [
-  {
-    id: crypto.randomUUID(),
-    name: "スタッフA",
-    group: "working",
-    memo: "通常業務対応可"
-  },
-  {
-    id: crypto.randomUUID(),
-    name: "スタッフB",
-    group: "working",
-    memo: "監視・一次対応"
-  },
-  {
-    id: crypto.randomUUID(),
-    name: "スタッフC",
-    group: "working",
-    memo: "手順確認済み"
-  },
-  {
-    id: crypto.randomUUID(),
-    name: "スタッフD",
-    group: "working",
-    memo: "引き継ぎ対応"
-  },
-  {
-    id: crypto.randomUUID(),
-    name: "スタッフE",
-    group: "working",
-    memo: "通常稼働"
-  },
-  {
-    id: crypto.randomUUID(),
-    name: "スタッフF",
-    group: "buffer",
-    memo: "補填候補・要確認"
-  },
-  {
-    id: crypto.randomUUID(),
-    name: "スタッフG",
-    group: "off",
-    memo: "休日"
-  }
+  { id: "staff-01", name: "スタッフ01", skill: "監視 / 一次対応" },
+  { id: "staff-02", name: "スタッフ02", skill: "通常作業" },
+  { id: "staff-03", name: "スタッフ03", skill: "ログ確認" },
+  { id: "staff-04", name: "スタッフ04", skill: "手順対応" },
+  { id: "staff-05", name: "スタッフ05", skill: "引き継ぎ" },
+  { id: "staff-06", name: "スタッフ06", skill: "夜勤対応" },
+  { id: "staff-07", name: "スタッフ07", skill: "夜勤対応" },
+  { id: "staff-08", name: "スタッフ08", skill: "休日想定" },
+  { id: "staff-09", name: "スタッフ09", skill: "休日想定" },
+  { id: "staff-10", name: "スタッフ10", skill: "休日想定" }
 ];
 
-const KNOWLEDGE_ITEMS = [
-  "通常業務の手順",
-  "作業の目的",
-  "作業完了条件",
-  "よくあるミス",
-  "イレギュラー条件",
-  "自己判断してよい範囲",
-  "エスカレーション先",
-  "欠員時に優先して守る業務",
-  "次シフトへの引き継ぎ項目",
-  "顧客報告が必要になる条件"
-];
-
-const INITIAL_CHECKED_KNOWLEDGE = [
-  "通常業務の手順",
-  "作業の目的",
-  "エスカレーション先"
-];
+function toDateString(date) {
+  return date.toISOString().slice(0, 10);
+}
 
 function getToday() {
-  return new Date().toISOString().slice(0, 10);
+  return toDateString(new Date());
+}
+
+function addDays(baseDateString, amount) {
+  const date = new Date(`${baseDateString}T00:00:00`);
+  date.setDate(date.getDate() + amount);
+  return toDateString(date);
+}
+
+function formatDateLabel(dateString) {
+  const date = new Date(`${dateString}T00:00:00`);
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+
+  return `${month}/${day}`;
+}
+
+function formatWeekLabel(dateString) {
+  const date = new Date(`${dateString}T00:00:00`);
+  return ["日", "月", "火", "水", "木", "金", "土"][date.getDay()];
+}
+
+function isWeekend(dateString) {
+  const date = new Date(`${dateString}T00:00:00`);
+  const day = date.getDay();
+  return day === 0 || day === 6;
+}
+
+function createDefaultAssignments(startDate, staffList) {
+  const assignments = {};
+
+  for (let dayIndex = 0; dayIndex < 7; dayIndex += 1) {
+    const dateKey = addDays(startDate, dayIndex);
+    assignments[dateKey] = {};
+
+    staffList.forEach((staff, staffIndex) => {
+      if (staffIndex < 5) {
+        assignments[dateKey][staff.id] = "day";
+      } else if (staffIndex < 7) {
+        assignments[dateKey][staff.id] = "night";
+      } else {
+        assignments[dateKey][staff.id] = "off";
+      }
+    });
+  }
+
+  return assignments;
 }
 
 function getInitialState() {
+  const today = getToday();
+
   return {
-    targetDate: getToday(),
-    shiftName: "日勤",
-    requiredCount: 5,
+    startDate: today,
+    requiredDayCount: 5,
+    requiredNightCount: 2,
+    activeDate: today,
     staffList: INITIAL_STAFF,
-    checkedKnowledge: INITIAL_CHECKED_KNOWLEDGE
+    assignments: createDefaultAssignments(today, INITIAL_STAFF),
+    operationMemo:
+      "欠員時は、日勤・夜勤それぞれの必要人数を下回るか確認する。補填や顧客報告の判断は上長・営業側と確認する。"
   };
 }
 
@@ -128,107 +118,217 @@ function loadSavedState() {
     const fallback = getInitialState();
 
     return {
-      targetDate: parsed.targetDate || fallback.targetDate,
-      shiftName: parsed.shiftName || fallback.shiftName,
-      requiredCount:
-        typeof parsed.requiredCount === "number"
-          ? parsed.requiredCount
-          : fallback.requiredCount,
-      staffList: Array.isArray(parsed.staffList) ? parsed.staffList : fallback.staffList,
-      checkedKnowledge: Array.isArray(parsed.checkedKnowledge)
-        ? parsed.checkedKnowledge
-        : fallback.checkedKnowledge
+      startDate: parsed.startDate || fallback.startDate,
+      requiredDayCount:
+        typeof parsed.requiredDayCount === "number"
+          ? parsed.requiredDayCount
+          : fallback.requiredDayCount,
+      requiredNightCount:
+        typeof parsed.requiredNightCount === "number"
+          ? parsed.requiredNightCount
+          : fallback.requiredNightCount,
+      activeDate: parsed.activeDate || parsed.startDate || fallback.activeDate,
+      staffList: Array.isArray(parsed.staffList)
+        ? parsed.staffList
+        : fallback.staffList,
+      assignments:
+        parsed.assignments && typeof parsed.assignments === "object"
+          ? parsed.assignments
+          : fallback.assignments,
+      operationMemo:
+        typeof parsed.operationMemo === "string"
+          ? parsed.operationMemo
+          : fallback.operationMemo
     };
   } catch {
     return getInitialState();
   }
 }
 
-function getStatus(requiredCount, workingCount, bufferCount) {
-  const workingShortage = Math.max(requiredCount - workingCount, 0);
-  const expectedShortage = Math.max(requiredCount - workingCount - bufferCount, 0);
+function getDayCounts(dateKey, assignments, staffList) {
+  const dayAssignments = assignments[dateKey] || {};
 
-  if (workingShortage <= 0) {
+  return staffList.reduce(
+    (acc, staff) => {
+      const shiftType = dayAssignments[staff.id] || "off";
+
+      if (shiftType === "day") {
+        acc.dayPeople += 1;
+      }
+
+      if (shiftType === "night") {
+        acc.nightPeople += 1;
+      }
+
+      if (shiftType === "off") {
+        acc.offPeople += 1;
+      }
+
+      return acc;
+    },
+    {
+      dayPeople: 0,
+      nightPeople: 0,
+      offPeople: 0
+    }
+  );
+}
+
+function getDayStatus(requiredDayCount, requiredNightCount, dayCounts) {
+  const dayShortage = Math.max(requiredDayCount - dayCounts.dayPeople, 0);
+  const nightShortage = Math.max(requiredNightCount - dayCounts.nightPeople, 0);
+  const totalShortage = dayShortage + nightShortage;
+
+  if (totalShortage <= 0) {
     return {
-      label: "通常",
       level: "normal",
-      message: "必要人員を満たしています。"
+      label: "通常",
+      message: "日勤・夜勤ともに必要人数を満たしています。",
+      dayShortage,
+      nightShortage,
+      totalShortage
     };
   }
 
-  if (expectedShortage <= 0) {
+  if (dayShortage > 0 && nightShortage > 0) {
     return {
-      label: "注意",
-      level: "warning",
-      message: "出勤人員は不足しています。補填候補枠の確認が必要です。"
+      level: "danger",
+      label: "不足",
+      message: "日勤・夜勤の両方で不足があります。",
+      dayShortage,
+      nightShortage,
+      totalShortage
     };
   }
 
   return {
-    label: "不足",
-    level: "danger",
-    message: "補填候補枠を含めても不足見込みがあります。上長・営業側への相談が必要です。"
+    level: "warning",
+    label: "注意",
+    message: "一部シフトで必要人数を下回っています。",
+    dayShortage,
+    nightShortage,
+    totalShortage
   };
+}
+
+function ensureWeekAssignments(currentAssignments, weekDates, staffList) {
+  const next = { ...currentAssignments };
+
+  weekDates.forEach((dateKey) => {
+    if (!next[dateKey]) {
+      next[dateKey] = {};
+    }
+
+    const nextDayAssignments = { ...next[dateKey] };
+
+    staffList.forEach((staff, staffIndex) => {
+      if (!nextDayAssignments[staff.id]) {
+        if (staffIndex < 5) {
+          nextDayAssignments[staff.id] = "day";
+        } else if (staffIndex < 7) {
+          nextDayAssignments[staff.id] = "night";
+        } else {
+          nextDayAssignments[staff.id] = "off";
+        }
+      }
+    });
+
+    next[dateKey] = nextDayAssignments;
+  });
+
+  return next;
 }
 
 function App() {
   const initialState = useMemo(() => loadSavedState(), []);
 
-  const [targetDate, setTargetDate] = useState(initialState.targetDate);
-  const [shiftName, setShiftName] = useState(initialState.shiftName);
-  const [requiredCount, setRequiredCount] = useState(initialState.requiredCount);
-  const [staffList, setStaffList] = useState(initialState.staffList);
-  const [newStaffName, setNewStaffName] = useState("");
-  const [draggingId, setDraggingId] = useState(null);
-  const [checkedKnowledge, setCheckedKnowledge] = useState(
-    initialState.checkedKnowledge
+  const [startDate, setStartDate] = useState(initialState.startDate);
+  const [requiredDayCount, setRequiredDayCount] = useState(
+    initialState.requiredDayCount
   );
+  const [requiredNightCount, setRequiredNightCount] = useState(
+    initialState.requiredNightCount
+  );
+  const [activeDate, setActiveDate] = useState(initialState.activeDate);
+  const [staffList, setStaffList] = useState(initialState.staffList);
+  const [assignments, setAssignments] = useState(initialState.assignments);
+  const [operationMemo, setOperationMemo] = useState(initialState.operationMemo);
+  const [draggingCell, setDraggingCell] = useState(null);
+
+  const weekDates = useMemo(() => {
+    return Array.from({ length: 7 }, (_, index) => addDays(startDate, index));
+  }, [startDate]);
+
+  const selectedDate = weekDates.includes(activeDate) ? activeDate : weekDates[0];
+
+  const visibleAssignments = useMemo(() => {
+    return ensureWeekAssignments(assignments, weekDates, staffList);
+  }, [assignments, weekDates, staffList]);
 
   useEffect(() => {
     const saveData = {
-      targetDate,
-      shiftName,
-      requiredCount,
+      startDate,
+      requiredDayCount,
+      requiredNightCount,
+      activeDate: selectedDate,
       staffList,
-      checkedKnowledge
+      assignments: visibleAssignments,
+      operationMemo
     };
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData));
-  }, [targetDate, shiftName, requiredCount, staffList, checkedKnowledge]);
+  }, [
+    startDate,
+    requiredDayCount,
+    requiredNightCount,
+    selectedDate,
+    staffList,
+    visibleAssignments,
+    operationMemo
+  ]);
 
-  const groupedStaff = useMemo(() => {
-    return Object.keys(GROUPS).reduce((acc, groupKey) => {
-      acc[groupKey] = staffList.filter((staff) => staff.group === groupKey);
-      return acc;
-    }, {});
-  }, [staffList]);
-
-  const counts = useMemo(() => {
-    const workingCount = groupedStaff.working.length * GROUPS.working.count;
-    const offCount = groupedStaff.off.length * GROUPS.off.count;
-    const bufferCount = groupedStaff.buffer.length * GROUPS.buffer.count;
-    const workingShortage = Math.max(requiredCount - workingCount, 0);
-    const expectedShortage = Math.max(requiredCount - workingCount - bufferCount, 0);
-
-    return {
-      workingCount,
-      offCount,
-      bufferCount,
-      workingShortage,
-      expectedShortage
-    };
-  }, [groupedStaff, requiredCount]);
-
-  const status = getStatus(requiredCount, counts.workingCount, counts.bufferCount);
-
-  const knowledgeRate = Math.round(
-    (checkedKnowledge.length / KNOWLEDGE_ITEMS.length) * 100
+  const activeCounts = getDayCounts(selectedDate, visibleAssignments, staffList);
+  const activeStatus = getDayStatus(
+    requiredDayCount,
+    requiredNightCount,
+    activeCounts
   );
 
-  const handleDragStart = (event, staffId) => {
-    setDraggingId(staffId);
+  const handleMoveWeek = (amount) => {
+    const nextStartDate = addDays(startDate, amount * 7);
+    setStartDate(nextStartDate);
+    setActiveDate(nextStartDate);
+  };
+
+  const handleChangeShift = (dateKey, staffId, nextShiftType) => {
+    setAssignments((current) => ({
+      ...current,
+      [dateKey]: {
+        ...(current[dateKey] || {}),
+        [staffId]: nextShiftType
+      }
+    }));
+  };
+
+  const handleCellClick = (dateKey, staffId) => {
+    const currentShift = visibleAssignments[dateKey]?.[staffId] || "off";
+    const nextShift = SHIFT_TYPES[currentShift].next;
+    handleChangeShift(dateKey, staffId, nextShift);
+    setActiveDate(dateKey);
+  };
+
+  const handleDragStart = (event, dateKey, staffId) => {
+    const shiftType = visibleAssignments[dateKey]?.[staffId] || "off";
+
+    const payload = {
+      fromDate: dateKey,
+      staffId,
+      shiftType
+    };
+
+    setDraggingCell(payload);
     event.dataTransfer.effectAllowed = "move";
-    event.dataTransfer.setData("text/plain", staffId);
+    event.dataTransfer.setData("application/json", JSON.stringify(payload));
   };
 
   const handleDragOver = (event) => {
@@ -236,78 +336,67 @@ function App() {
     event.dataTransfer.dropEffect = "move";
   };
 
-  const handleDrop = (event, targetGroup) => {
+  const handleDrop = (event, targetDate, targetStaffId) => {
     event.preventDefault();
 
-    const staffId = event.dataTransfer.getData("text/plain") || draggingId;
+    let payload = draggingCell;
 
-    if (!staffId) {
-      return;
-    }
-
-    setStaffList((current) =>
-      current.map((staff) =>
-        staff.id === staffId
-          ? {
-              ...staff,
-              group: targetGroup
-            }
-          : staff
-      )
-    );
-
-    setDraggingId(null);
-  };
-
-  const handleAddStaff = () => {
-    const trimmedName = newStaffName.trim();
-
-    if (!trimmedName) {
-      return;
-    }
-
-    setStaffList((current) => [
-      ...current,
-      {
-        id: crypto.randomUUID(),
-        name: trimmedName,
-        group: "off",
-        memo: "未設定"
+    try {
+      const data = event.dataTransfer.getData("application/json");
+      if (data) {
+        payload = JSON.parse(data);
       }
-    ]);
+    } catch {
+      payload = draggingCell;
+    }
 
-    setNewStaffName("");
+    if (!payload) {
+      return;
+    }
+
+    const targetShift = payload.shiftType;
+
+    setAssignments((current) => {
+      const next = ensureWeekAssignments(current, weekDates, staffList);
+
+      next[payload.fromDate] = {
+        ...next[payload.fromDate],
+        [payload.staffId]: "off"
+      };
+
+      next[targetDate] = {
+        ...next[targetDate],
+        [targetStaffId]: targetShift
+      };
+
+      return next;
+    });
+
+    setActiveDate(targetDate);
+    setDraggingCell(null);
   };
 
-  const handleDeleteStaff = (staffId) => {
-    setStaffList((current) => current.filter((staff) => staff.id !== staffId));
+  const handleResetWeek = () => {
+    const ok = window.confirm("表示中の週のシフトを初期配置に戻します。");
+
+    if (!ok) {
+      return;
+    }
+
+    setAssignments((current) => {
+      const next = { ...current };
+      const resetAssignments = createDefaultAssignments(startDate, staffList);
+
+      weekDates.forEach((dateKey) => {
+        next[dateKey] = resetAssignments[dateKey];
+      });
+
+      return next;
+    });
   };
 
-  const handleUpdateMemo = (staffId, memo) => {
-    setStaffList((current) =>
-      current.map((staff) =>
-        staff.id === staffId
-          ? {
-              ...staff,
-              memo
-            }
-          : staff
-      )
-    );
-  };
-
-  const handleToggleKnowledge = (item) => {
-    setCheckedKnowledge((current) =>
-      current.includes(item)
-        ? current.filter((checkedItem) => checkedItem !== item)
-        : [...current, item]
-    );
-  };
-
-  const handleResetData = () => {
-    const ok = window.confirm(
-      "保存データを初期状態に戻します。現在のスタッフ配置やメモもリセットされます。"
-    );
+  const handleResetAll = () => {
+    const ok = window.confirm("保存データをすべて初期化します。");
 
     if (!ok) {
       return;
@@ -315,270 +404,262 @@ function App() {
 
     const resetState = getInitialState();
 
-    setTargetDate(resetState.targetDate);
-    setShiftName(resetState.shiftName);
-    setRequiredCount(resetState.requiredCount);
+    setStartDate(resetState.startDate);
+    setRequiredDayCount(resetState.requiredDayCount);
+    setRequiredNightCount(resetState.requiredNightCount);
+    setActiveDate(resetState.activeDate);
     setStaffList(resetState.staffList);
-    setCheckedKnowledge(resetState.checkedKnowledge);
-    setNewStaffName("");
+    setAssignments(resetState.assignments);
+    setOperationMemo(resetState.operationMemo);
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(resetState));
   };
 
   return (
     <main className="app-shell">
-      <section className="hero-card">
-        <div className="hero-copy">
-          <div className="eyebrow">
-            <ShieldCheck size={18} />
-            体制ガードマップ
-          </div>
+      <header className="app-header">
+        <p className="app-kicker">シフト制・体制維持表</p>
+        <h1>Staff Guard Map</h1>
+        <p className="app-lead">
+          10名体制を前提に、日別の「日勤・夜勤・休日」を表形式で整理します。
+          セルはタップで変更、ドラッグで移動できます。
+        </p>
+      </header>
 
-          <h1>Staff Guard Map</h1>
-
-          <p>
-            欠員時の「人員数」と「業務機能」を分けて確認するための、
-            体制維持プロトタイプです。
-          </p>
-        </div>
-
-        <div className={`status-badge status-badge--${status.level}`}>
-          <span>{status.label}</span>
-          <small>{status.message}</small>
-        </div>
-      </section>
-
-      <section className="control-panel">
-        <label className="field">
-          <span>
-            <CalendarDays size={16} />
-            対象日
-          </span>
-          <input
-            type="date"
-            value={targetDate}
-            onChange={(event) => setTargetDate(event.target.value)}
-          />
-        </label>
-
-        <label className="field">
-          <span>
-            <ClipboardList size={16} />
-            対象シフト
-          </span>
-          <input
-            type="text"
-            value={shiftName}
-            onChange={(event) => setShiftName(event.target.value)}
-          />
-        </label>
-
-        <label className="field">
-          <span>
-            <Users size={16} />
-            必要人員
-          </span>
-          <input
-            type="number"
-            min="0"
-            step="0.5"
-            value={requiredCount}
-            onChange={(event) => setRequiredCount(Number(event.target.value))}
-          />
-        </label>
-      </section>
-
-      <section className="summary-grid" aria-label="体制サマリー">
-        <article className="summary-card">
-          <span>必要人員</span>
-          <strong>{requiredCount.toFixed(1)}</strong>
-          <small>契約・体制上の基準</small>
-        </article>
-
-        <article className="summary-card">
-          <span>出勤カウント</span>
-          <strong>{counts.workingCount.toFixed(1)}</strong>
-          <small>出勤者 × 1.0</small>
-        </article>
-
-        <article className="summary-card">
-          <span>補填候補枠</span>
-          <strong>{counts.bufferCount.toFixed(1)}</strong>
-          <small>候補者 × 0.5</small>
-        </article>
-
-        <article className={`summary-card summary-card--${status.level}`}>
-          <span>不足見込み</span>
-          <strong>{counts.expectedShortage.toFixed(1)}</strong>
-          <small>即時補填保証なし</small>
-        </article>
-      </section>
-
-      <section className="workspace">
-        <div className="board-area">
-          <div className="section-heading">
-            <h2>スタッフ配置</h2>
-            <p>カードをドラッグして、出勤・休日・補填候補へ移動できます。</p>
-          </div>
-
-          <div className="add-staff">
+      <section className="control-card">
+        <div className="control-grid">
+          <label className="control-field">
+            <span>週の開始日</span>
             <input
-              type="text"
-              value={newStaffName}
-              onChange={(event) => setNewStaffName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  handleAddStaff();
-                }
+              type="date"
+              value={startDate}
+              onChange={(event) => {
+                setStartDate(event.target.value);
+                setActiveDate(event.target.value);
               }}
-              placeholder="追加するスタッフ名"
             />
-            <button type="button" onClick={handleAddStaff}>
-              <Plus size={16} />
-              追加
+          </label>
+
+          <label className="control-field">
+            <span>日勤 必要人数</span>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={requiredDayCount}
+              onChange={(event) => setRequiredDayCount(Number(event.target.value))}
+            />
+          </label>
+
+          <label className="control-field">
+            <span>夜勤 必要人数</span>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={requiredNightCount}
+              onChange={(event) =>
+                setRequiredNightCount(Number(event.target.value))
+              }
+            />
+          </label>
+
+          <div className="week-actions">
+            <button type="button" onClick={() => handleMoveWeek(-1)}>
+              前週
+            </button>
+            <button type="button" onClick={() => handleMoveWeek(1)}>
+              次週
+            </button>
+            <button type="button" onClick={handleResetWeek}>
+              週初期化
             </button>
           </div>
+        </div>
+      </section>
 
-          <div className="staff-board">
-            {Object.entries(GROUPS).map(([groupKey, group]) => (
-              <section
-                key={groupKey}
-                className={`staff-column staff-column--${group.tone}`}
-                onDragOver={handleDragOver}
-                onDrop={(event) => handleDrop(event, groupKey)}
-              >
-                <header className="column-header">
-                  <div>
-                    <h3>{group.label}</h3>
-                    <p>{group.description}</p>
-                  </div>
+      <section className="active-summary">
+        <article className={`summary-main summary-main--${activeStatus.level}`}>
+          <span>選択日</span>
+          <strong>
+            {formatDateLabel(selectedDate)}({formatWeekLabel(selectedDate)})
+          </strong>
+          <p>{activeStatus.message}</p>
+        </article>
 
-                  <span className="column-count">
-                    {groupedStaff[groupKey].length}名
-                  </span>
-                </header>
+        <article>
+          <span>日勤</span>
+          <strong>{activeCounts.dayPeople}</strong>
+        </article>
 
-                <div className="staff-list">
-                  {groupedStaff[groupKey].map((staff) => (
-                    <article
-                      key={staff.id}
-                      className={`staff-card ${
-                        draggingId === staff.id ? "staff-card--dragging" : ""
-                      }`}
-                      draggable
-                      onDragStart={(event) => handleDragStart(event, staff.id)}
-                      onDragEnd={() => setDraggingId(null)}
-                    >
-                      <div className="staff-card__main">
-                        <GripVertical className="drag-icon" size={18} />
-                        <div>
-                          <strong>{staff.name}</strong>
-                          <span>{group.shortLabel}</span>
-                        </div>
-                      </div>
+        <article>
+          <span>夜勤</span>
+          <strong>{activeCounts.nightPeople}</strong>
+        </article>
 
-                      <textarea
-                        value={staff.memo}
-                        onChange={(event) =>
-                          handleUpdateMemo(staff.id, event.target.value)
-                        }
-                        rows="2"
-                        aria-label={`${staff.name}のメモ`}
-                      />
+        <article>
+          <span>休日</span>
+          <strong>{activeCounts.offPeople}</strong>
+        </article>
 
-                      <button
-                        type="button"
-                        className="delete-button"
-                        onClick={() => handleDeleteStaff(staff.id)}
-                        aria-label={`${staff.name}を削除`}
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </article>
-                  ))}
+        <article className={`summary-shortage summary-shortage--${activeStatus.level}`}>
+          <span>不足</span>
+          <strong>{activeStatus.totalShortage}</strong>
+        </article>
+      </section>
 
-                  {groupedStaff[groupKey].length === 0 && (
-                    <div className="empty-drop-zone">ここへドラッグ</div>
-                  )}
-                </div>
-              </section>
-            ))}
+      <section className="shift-table-card">
+        <div className="table-heading">
+          <div>
+            <h2>週次シフト表</h2>
+            <p>
+              横にスライドできます。セルをタップすると「休 → 日 → 夜 → 休」で切り替わります。
+            </p>
+          </div>
+
+          <div className="legend">
+            <span className="legend-item legend-item--day">日 日勤</span>
+            <span className="legend-item legend-item--night">夜 夜勤</span>
+            <span className="legend-item legend-item--off">休 休日</span>
           </div>
         </div>
 
-        <aside className="side-panel">
-          <section className="info-card">
-            <h2>欠員時チェック</h2>
+        <div className="shift-table-wrap">
+          <table className="shift-table">
+            <thead>
+              <tr>
+                <th className="staff-head">スタッフ</th>
+                {weekDates.map((dateKey) => {
+                  const dayCounts = getDayCounts(
+                    dateKey,
+                    visibleAssignments,
+                    staffList
+                  );
+                  const dayStatus = getDayStatus(
+                    requiredDayCount,
+                    requiredNightCount,
+                    dayCounts
+                  );
 
-            <div className="check-row">
-              <span>出勤不足</span>
-              <strong>{counts.workingShortage.toFixed(1)}</strong>
-            </div>
+                  return (
+                    <th
+                      key={dateKey}
+                      className={`date-head ${
+                        selectedDate === dateKey ? "date-head--active" : ""
+                      } ${isWeekend(dateKey) ? "date-head--weekend" : ""}`}
+                      onClick={() => setActiveDate(dateKey)}
+                    >
+                      <span>{formatDateLabel(dateKey)}</span>
+                      <small>{formatWeekLabel(dateKey)}</small>
+                      <b className={`mini-status mini-status--${dayStatus.level}`}>
+                        {dayStatus.label}
+                      </b>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
 
-            <div className="check-row">
-              <span>補填候補枠</span>
-              <strong>{counts.bufferCount.toFixed(1)}</strong>
-            </div>
+            <tbody>
+              {staffList.map((staff) => (
+                <tr key={staff.id}>
+                  <th className="staff-name">
+                    <strong>{staff.name}</strong>
+                    <small>{staff.skill}</small>
+                  </th>
 
-            <div className="check-row">
-              <span>不足見込み</span>
-              <strong>{counts.expectedShortage.toFixed(1)}</strong>
-            </div>
+                  {weekDates.map((dateKey) => {
+                    const shiftType = visibleAssignments[dateKey]?.[staff.id] || "off";
+                    const shift = SHIFT_TYPES[shiftType];
 
-            <div className={`notice notice--${status.level}`}>
-              {status.level === "normal" ? (
-                <CheckCircle2 size={18} />
-              ) : (
-                <AlertTriangle size={18} />
-              )}
-              <p>{status.message}</p>
-            </div>
-          </section>
-
-          <section className="info-card">
-            <h2>ナレッジ共有</h2>
-
-            <div className="knowledge-meter">
-              <span style={{ width: `${knowledgeRate}%` }} />
-            </div>
-
-            <p className="knowledge-rate">共有率 {knowledgeRate}%</p>
-
-            <div className="knowledge-list">
-              {KNOWLEDGE_ITEMS.map((item) => (
-                <label key={item} className="knowledge-item">
-                  <input
-                    type="checkbox"
-                    checked={checkedKnowledge.includes(item)}
-                    onChange={() => handleToggleKnowledge(item)}
-                  />
-                  <span>{item}</span>
-                </label>
+                    return (
+                      <td
+                        key={`${dateKey}-${staff.id}`}
+                        className={`shift-cell ${
+                          selectedDate === dateKey ? "shift-cell--active-date" : ""
+                        }`}
+                        onDragOver={handleDragOver}
+                        onDrop={(event) => handleDrop(event, dateKey, staff.id)}
+                      >
+                        <button
+                          type="button"
+                          className={`shift-pill shift-pill--${shiftType}`}
+                          draggable
+                          onClick={() => handleCellClick(dateKey, staff.id)}
+                          onDragStart={(event) =>
+                            handleDragStart(event, dateKey, staff.id)
+                          }
+                          onDragEnd={() => setDraggingCell(null)}
+                        >
+                          <span>{shift.shortLabel}</span>
+                          <small>{shift.label}</small>
+                        </button>
+                      </td>
+                    );
+                  })}
+                </tr>
               ))}
-            </div>
-          </section>
+            </tbody>
 
-          <section className="info-card">
-            <h2>保存</h2>
-            <p className="small-text">
-              入力内容・スタッフ配置・メモ・ナレッジ共有状態は、
-              このブラウザに自動保存されます。
-            </p>
+            <tfoot>
+              <tr>
+                <th className="staff-name staff-name--total">日別集計</th>
 
-            <button type="button" className="reset-button" onClick={handleResetData}>
-              保存データを初期化
-            </button>
-          </section>
+                {weekDates.map((dateKey) => {
+                  const dayCounts = getDayCounts(
+                    dateKey,
+                    visibleAssignments,
+                    staffList
+                  );
+                  const dayStatus = getDayStatus(
+                    requiredDayCount,
+                    requiredNightCount,
+                    dayCounts
+                  );
 
-          <section className="info-card">
-            <h2>注意</h2>
-            <p className="small-text">
-              補填候補枠は、即時補填や休日呼び出しを保証するものではありません。
-              実際の勤怠・契約・単価・待機扱い・顧客報告は、
-              上長・営業・管理側との確認が必要です。
-            </p>
-          </section>
-        </aside>
+                  return (
+                    <td
+                      key={`total-${dateKey}`}
+                      className={`day-total day-total--${dayStatus.level}`}
+                      onClick={() => setActiveDate(dateKey)}
+                    >
+                      <span>日 {dayCounts.dayPeople}</span>
+                      <span>夜 {dayCounts.nightPeople}</span>
+                      <strong>不足 {dayStatus.totalShortage}</strong>
+                    </td>
+                  );
+                })}
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </section>
+
+      <section className="bottom-grid">
+        <section className="info-card">
+          <h2>運用メモ</h2>
+          <textarea
+            className="memo-textarea"
+            value={operationMemo}
+            onChange={(event) => setOperationMemo(event.target.value)}
+            rows="7"
+          />
+        </section>
+
+        <section className="info-card">
+          <h2>この画面の扱い</h2>
+          <p className="note-text">
+            この画面は、日勤・夜勤・休日の配置を見える化するための検討用プロトタイプです。
+          </p>
+          <p className="note-text">
+            実際の勤怠・契約・単価・待機扱い・顧客報告は、
+            上長・営業・管理側との確認が必要です。
+          </p>
+
+          <button type="button" className="danger-button" onClick={handleResetAll}>
+            保存データを全初期化
+          </button>
+        </section>
       </section>
     </main>
   );
