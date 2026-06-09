@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
-const STORAGE_KEY = "staff-guard-map-shift-table-v9";
+const STORAGE_KEY = "staff-guard-map-shift-table-v10";
 
 const MIN_DAY_COUNT = 2;
 const MIN_NIGHT_COUNT = 2;
@@ -152,6 +152,49 @@ function loadSavedState() {
   } catch {
     return getInitialState();
   }
+}
+
+function isWorkShift(shiftType) {
+  return shiftType === "day" || shiftType === "night";
+}
+
+function getShiftForDate(dateKey, staffId, assignments, staffList) {
+  const savedShift = assignments[dateKey]?.[staffId];
+
+  if (savedShift) {
+    return savedShift;
+  }
+
+  const staffIndex = staffList.findIndex((staff) => staff.id === staffId);
+  return getDefaultShiftByStaffIndex(staffIndex);
+}
+
+function getConsecutiveWorkDaysBefore(dateKey, staffId, assignments, staffList) {
+  let count = 0;
+
+  for (let offset = 1; offset <= 5; offset += 1) {
+    const targetDate = addDays(dateKey, -offset);
+    const shiftType = getShiftForDate(
+      targetDate,
+      staffId,
+      assignments,
+      staffList
+    );
+
+    if (!isWorkShift(shiftType)) {
+      break;
+    }
+
+    count += 1;
+  }
+
+  return count;
+}
+
+function canAssignBuffer(dateKey, staffId, assignments, staffList) {
+  return (
+    getConsecutiveWorkDaysBefore(dateKey, staffId, assignments, staffList) < 5
+  );
 }
 
 function getDayCounts(dateKey, assignments, staffList) {
@@ -322,7 +365,16 @@ function App() {
 
   const handleCellClick = (dateKey, staffId) => {
     const currentShift = visibleAssignments[dateKey]?.[staffId] || "off";
-    const nextShift = SHIFT_TYPES[currentShift].next;
+    let nextShift = SHIFT_TYPES[currentShift].next;
+
+    if (
+      nextShift === "buffer" &&
+      !canAssignBuffer(dateKey, staffId, visibleAssignments, staffList)
+    ) {
+      window.alert("5連勤しているため、この日はバッファー候補にできません。");
+      nextShift = "off";
+    }
+
     handleChangeShift(dateKey, staffId, nextShift);
     setActiveDate(dateKey);
   };
@@ -368,6 +420,16 @@ function App() {
 
     setAssignments((current) => {
       const next = ensureWeekAssignments(current, weekDates, staffList);
+
+      if (
+        targetShift === "buffer" &&
+        !canAssignBuffer(targetDate, targetStaffId, next, staffList)
+      ) {
+        window.alert(
+          "5連勤しているため、この日はバッファー候補にできません。"
+        );
+        return next;
+      }
 
       next[payload.fromDate] = {
         ...next[payload.fromDate],
@@ -650,6 +712,9 @@ function App() {
           <p className="note-text">
             バッファーは、即時補填や休日呼び出しを保証するものではありません。
             欠員時の補填候補として事前に整理するための枠です。
+          </p>
+          <p className="note-text">
+            5連勤している人は、バッファー候補にできません。
           </p>
           <p className="note-text">
             具体的な勤務時刻は、実運用・勤怠・契約に関わるため、このプロトタイプでは固定しません。

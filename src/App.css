@@ -1,3 +1,17 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+  margin: 0;
+  overflow-x: hidden;
+}
+
 .app-shell {
   min-height: 100vh;
   width: 100%;
@@ -63,8 +77,6 @@
   line-height: 1.7;
 }
 
-/* controls */
-
 .control-card {
   padding: 12px;
 }
@@ -126,12 +138,13 @@
 
 .week-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 8px;
 }
 
 .week-actions button,
 .danger-button {
+  width: 100%;
   min-width: 0;
   min-height: 42px;
   border: 1px solid #cbd5e1;
@@ -146,8 +159,6 @@
 .week-actions button:hover {
   background: #f8fafc;
 }
-
-/* summary */
 
 .active-summary {
   display: grid;
@@ -222,10 +233,8 @@
   line-height: 1.5;
 }
 
-/* table */
-
 .shift-table-card {
-  overflow: visible;
+  overflow: hidden;
 }
 
 .table-heading {
@@ -289,12 +298,11 @@
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-  border-radius: 0 0 14px 14px;
 }
 
 .shift-table {
   width: max-content;
-  min-width: 850px;
+  min-width: 860px;
   border-collapse: separate;
   border-spacing: 0;
   background: #ffffff;
@@ -508,8 +516,6 @@
   background: #fef2f2;
 }
 
-/* bottom */
-
 .bottom-grid {
   display: grid;
   grid-template-columns: 1fr;
@@ -567,15 +573,9 @@
   background: #fee2e2;
 }
 
-/* tablet */
-
 @media (min-width: 640px) {
-  .control-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .week-actions {
-    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .active-summary {
@@ -586,8 +586,6 @@
     grid-column: 1 / -1;
   }
 }
-
-/* desktop */
 
 @media (min-width: 960px) {
   .app-shell {
@@ -595,7 +593,7 @@
   }
 
   .control-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: 1fr 1fr;
   }
 
   .week-actions {
@@ -609,17 +607,11 @@
   .summary-main {
     grid-column: 1 / -1;
   }
-
-  .bottom-grid {
-    grid-template-columns: 1fr;
-  }
 }
-
-/* wide desktop */
 
 @media (min-width: 1280px) {
   .control-grid {
-    grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr) minmax(320px, 1.2fr);
+    grid-template-columns: 1fr 1fr;
   }
 
   .week-actions {
@@ -629,13 +621,7 @@
   .active-summary {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-
-  .bottom-grid {
-    grid-template-columns: 1fr;
-  }
 }
-
-/* narrow mobile */
 
 @media (max-width: 380px) {
   .app-shell {
