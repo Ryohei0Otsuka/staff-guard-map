@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
-const STORAGE_KEY = "staff-guard-map-shift-table-v11";
+const STORAGE_KEY = "staff-guard-map-shift-table-v12";
 
+const DISPLAY_DAYS = 14;
 const MIN_DAY_COUNT = 2;
 const MIN_NIGHT_COUNT = 2;
 
@@ -98,7 +99,7 @@ function getDefaultShiftByStaffIndex(staffIndex) {
 function createDefaultAssignments(startDate, staffList) {
   const assignments = {};
 
-  for (let dayIndex = 0; dayIndex < 7; dayIndex += 1) {
+  for (let dayIndex = 0; dayIndex < DISPLAY_DAYS; dayIndex += 1) {
     const dateKey = addDays(startDate, dayIndex);
     assignments[dateKey] = {};
 
@@ -300,10 +301,10 @@ function getDayStatus(dayCounts) {
   };
 }
 
-function ensureWeekAssignments(currentAssignments, weekDates, staffList) {
+function ensureDisplayAssignments(currentAssignments, displayDates, staffList) {
   const next = { ...currentAssignments };
 
-  weekDates.forEach((dateKey) => {
+  displayDates.forEach((dateKey) => {
     if (!next[dateKey]) {
       next[dateKey] = {};
     }
@@ -332,15 +333,19 @@ function App() {
   const [operationMemo, setOperationMemo] = useState(initialState.operationMemo);
   const [draggingCell, setDraggingCell] = useState(null);
 
-  const weekDates = useMemo(() => {
-    return Array.from({ length: 7 }, (_, index) => addDays(startDate, index));
+  const displayDates = useMemo(() => {
+    return Array.from({ length: DISPLAY_DAYS }, (_, index) =>
+      addDays(startDate, index)
+    );
   }, [startDate]);
 
-  const selectedDate = weekDates.includes(activeDate) ? activeDate : weekDates[0];
+  const selectedDate = displayDates.includes(activeDate)
+    ? activeDate
+    : displayDates[0];
 
   const visibleAssignments = useMemo(() => {
-    return ensureWeekAssignments(assignments, weekDates, staffList);
-  }, [assignments, weekDates, staffList]);
+    return ensureDisplayAssignments(assignments, displayDates, staffList);
+  }, [assignments, displayDates, staffList]);
 
   useEffect(() => {
     const saveData = {
@@ -357,8 +362,8 @@ function App() {
   const activeCounts = getDayCounts(selectedDate, visibleAssignments, staffList);
   const activeStatus = getDayStatus(activeCounts);
 
-  const handleMoveWeek = (amount) => {
-    const nextStartDate = addDays(startDate, amount * 7);
+  const handleMovePeriod = (amount) => {
+    const nextStartDate = addDays(startDate, amount * DISPLAY_DAYS);
     setStartDate(nextStartDate);
     setActiveDate(nextStartDate);
   };
@@ -429,7 +434,7 @@ function App() {
     const targetShift = payload.shiftType;
 
     setAssignments((current) => {
-      const next = ensureWeekAssignments(current, weekDates, staffList);
+      const next = ensureDisplayAssignments(current, displayDates, staffList);
 
       if (
         targetShift === "buffer" &&
@@ -458,8 +463,8 @@ function App() {
     setDraggingCell(null);
   };
 
-  const handleResetWeek = () => {
-    const ok = window.confirm("表示中の週のシフトを初期配置に戻します。");
+  const handleResetPeriod = () => {
+    const ok = window.confirm("表示中の2週間のシフトを初期配置に戻します。");
 
     if (!ok) {
       return;
@@ -469,7 +474,7 @@ function App() {
       const next = { ...current };
       const resetAssignments = createDefaultAssignments(startDate, staffList);
 
-      weekDates.forEach((dateKey) => {
+      displayDates.forEach((dateKey) => {
         next[dateKey] = resetAssignments[dateKey];
       });
 
@@ -508,7 +513,7 @@ function App() {
       <section className="control-card">
         <div className="control-grid">
           <label className="control-field">
-            <span>週の開始日</span>
+            <span>表示開始日</span>
             <input
               type="date"
               value={startDate}
@@ -520,19 +525,19 @@ function App() {
           </label>
 
           <div className="minimum-note">
-            <span>最低人員</span>
-            <strong>日勤2人 / 夜勤2人</strong>
+            <span>表示期間 / 最低人員</span>
+            <strong>2週間 / 日勤2人・夜勤2人</strong>
           </div>
 
           <div className="week-actions">
-            <button type="button" onClick={() => handleMoveWeek(-1)}>
-              前週
+            <button type="button" onClick={() => handleMovePeriod(-1)}>
+              前の2週間
             </button>
-            <button type="button" onClick={() => handleMoveWeek(1)}>
-              次週
+            <button type="button" onClick={() => handleMovePeriod(1)}>
+              次の2週間
             </button>
-            <button type="button" onClick={handleResetWeek}>
-              週初期化
+            <button type="button" onClick={handleResetPeriod}>
+              2週間初期化
             </button>
           </div>
         </div>
@@ -590,7 +595,7 @@ function App() {
       <section className="shift-table-card">
         <div className="table-heading">
           <div>
-            <h2>週次シフト表</h2>
+            <h2>2週間シフト表</h2>
             <p>
               横にスライドできます。セルをタップすると「休 → 日 → 夜 → 候 → 休」で切り替わります。
             </p>
@@ -609,7 +614,7 @@ function App() {
             <thead>
               <tr>
                 <th className="staff-head">スタッフ</th>
-                {weekDates.map((dateKey) => {
+                {displayDates.map((dateKey) => {
                   const dayCounts = getDayCounts(
                     dateKey,
                     visibleAssignments,
@@ -643,8 +648,9 @@ function App() {
                     <strong>{staff.name}</strong>
                   </th>
 
-                  {weekDates.map((dateKey) => {
-                    const shiftType = visibleAssignments[dateKey]?.[staff.id] || "off";
+                  {displayDates.map((dateKey) => {
+                    const shiftType =
+                      visibleAssignments[dateKey]?.[staff.id] || "off";
                     const shift = SHIFT_TYPES[shiftType];
 
                     return (
@@ -680,7 +686,7 @@ function App() {
               <tr>
                 <th className="staff-name staff-name--total">日別集計</th>
 
-                {weekDates.map((dateKey) => {
+                {displayDates.map((dateKey) => {
                   const dayCounts = getDayCounts(
                     dateKey,
                     visibleAssignments,

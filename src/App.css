@@ -310,10 +310,10 @@ body,
   border-radius: 0 0 14px 14px;
 }
 
-/* 表は意図的に画面より広くする */
+/* 2週間分なので、表は意図的に横長にする */
 .shift-table {
   width: max-content;
-  min-width: 860px;
+  min-width: 1520px;
   border-collapse: separate;
   border-spacing: 0;
   background: #ffffff;
@@ -367,8 +367,8 @@ body,
 }
 
 .date-head {
-  width: 94px;
-  min-width: 94px;
+  width: 96px;
+  min-width: 96px;
   height: 62px;
   padding: 6px;
   color: #0f172a;
@@ -429,8 +429,8 @@ body,
 }
 
 .shift-cell {
-  width: 94px;
-  min-width: 94px;
+  width: 96px;
+  min-width: 96px;
   height: 56px;
   padding: 5px;
   background: #ffffff;
@@ -490,8 +490,8 @@ body,
 }
 
 .day-total {
-  width: 94px;
-  min-width: 94px;
+  width: 96px;
+  min-width: 96px;
   padding: 7px 5px;
   text-align: center;
   background: #f8fafc;
@@ -664,7 +664,7 @@ body,
   }
 
   .shift-table {
-    min-width: 780px;
+    min-width: 1380px;
   }
 
   .active-summary strong {
