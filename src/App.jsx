@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
-const STORAGE_KEY = "staff-guard-map-shift-table-v12";
+const STORAGE_KEY = "staff-guard-map-shift-table-v13";
 
 const DISPLAY_DAYS = 14;
 const MIN_DAY_COUNT = 2;
@@ -120,7 +120,7 @@ function getInitialState() {
     staffList: INITIAL_STAFF,
     assignments: createDefaultAssignments(today, INITIAL_STAFF),
     operationMemo:
-      "日勤・夜勤はそれぞれ最低2人を下回らないか確認する。バッファーは1人=0.5換算の補填候補枠であり、即時補填や休日呼び出しを保証するものではない。"
+      "日勤・夜勤はそれぞれ最低2人を下回らないか確認する。夜勤の翌日は日勤にしない。5連勤後は日勤・夜勤・バッファー候補にしない。バッファーは1人=0.5換算の補填候補枠であり、即時補填や休日呼び出しを保証するものではない。"
   };
 }
 
@@ -159,6 +159,10 @@ function isWorkShift(shiftType) {
   return shiftType === "day" || shiftType === "night";
 }
 
+function isRestrictedAfterFiveWorkdaysShift(shiftType) {
+  return shiftType === "day" || shiftType === "night" || shiftType === "buffer";
+}
+
 function getShiftForDate(dateKey, staffId, assignments, staffList) {
   const savedShift = assignments[dateKey]?.[staffId];
 
@@ -192,10 +196,50 @@ function getConsecutiveWorkDaysBefore(dateKey, staffId, assignments, staffList) 
   return count;
 }
 
-function canAssignBuffer(dateKey, staffId, assignments, staffList) {
-  return (
-    getConsecutiveWorkDaysBefore(dateKey, staffId, assignments, staffList) < 5
+function validateShiftAssignment(
+  dateKey,
+  staffId,
+  nextShiftType,
+  assignments,
+  staffList
+) {
+  const previousDate = addDays(dateKey, -1);
+  const previousShift = getShiftForDate(
+    previousDate,
+    staffId,
+    assignments,
+    staffList
   );
+
+  const consecutiveWorkDays = getConsecutiveWorkDaysBefore(
+    dateKey,
+    staffId,
+    assignments,
+    staffList
+  );
+
+  if (previousShift === "night" && nextShiftType === "day") {
+    return {
+      ok: false,
+      message: "夜勤の翌日は日勤にできません。"
+    };
+  }
+
+  if (
+    consecutiveWorkDays >= 5 &&
+    isRestrictedAfterFiveWorkdaysShift(nextShiftType)
+  ) {
+    return {
+      ok: false,
+      message:
+        "5連勤後のため、日勤・夜勤・バッファー候補にはできません。"
+    };
+  }
+
+  return {
+    ok: true,
+    message: ""
+  };
 }
 
 function getDayCounts(dateKey, assignments, staffList) {
@@ -382,11 +426,16 @@ function App() {
     const currentShift = visibleAssignments[dateKey]?.[staffId] || "off";
     let nextShift = SHIFT_TYPES[currentShift].next;
 
-    if (
-      nextShift === "buffer" &&
-      !canAssignBuffer(dateKey, staffId, visibleAssignments, staffList)
-    ) {
-      window.alert("5連勤しているため、この日はバッファー候補にできません。");
+    const shiftCheck = validateShiftAssignment(
+      dateKey,
+      staffId,
+      nextShift,
+      visibleAssignments,
+      staffList
+    );
+
+    if (!shiftCheck.ok) {
+      window.alert(shiftCheck.message);
       nextShift = "off";
     }
 
@@ -436,13 +485,16 @@ function App() {
     setAssignments((current) => {
       const next = ensureDisplayAssignments(current, displayDates, staffList);
 
-      if (
-        targetShift === "buffer" &&
-        !canAssignBuffer(targetDate, targetStaffId, next, staffList)
-      ) {
-        window.alert(
-          "5連勤しているため、この日はバッファー候補にできません。"
-        );
+      const shiftCheck = validateShiftAssignment(
+        targetDate,
+        targetStaffId,
+        targetShift,
+        next,
+        staffList
+      );
+
+      if (!shiftCheck.ok) {
+        window.alert(shiftCheck.message);
         return next;
       }
 
@@ -734,14 +786,17 @@ function App() {
             日勤・夜勤は1人、バッファーは0.5人、休みは0人として扱います。
           </p>
           <p className="note-text">
+            夜勤の翌日は、日勤にできません。
+          </p>
+          <p className="note-text">
+            5連勤後は、日勤・夜勤・バッファー候補にできません。
+          </p>
+          <p className="note-text">
             日勤・夜勤はそれぞれ2人未満の場合にアラートを表示します。
           </p>
           <p className="note-text">
             バッファーは、即時補填や休日呼び出しを保証するものではありません。
             欠員時の補填候補として事前に整理するための枠です。
-          </p>
-          <p className="note-text">
-            5連勤している人は、バッファー候補にできません。
           </p>
           <p className="note-text">
             具体的な勤務時刻は、実運用・勤怠・契約に関わるため、このプロトタイプでは固定しません。
