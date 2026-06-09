@@ -1,20 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
-const STORAGE_KEY = "staff-guard-map-shift-table-v6";
+const STORAGE_KEY = "staff-guard-map-shift-table-v7";
 
 const MIN_DAY_COUNT = 2;
 const MIN_NIGHT_COUNT = 2;
 
 const SHIFT_TYPES = {
   day: {
-    label: "昼",
-    shortLabel: "昼",
+    label: "日勤",
+    shortLabel: "日",
     count: 1,
     next: "night"
   },
   night: {
-    label: "夜",
+    label: "夜勤",
     shortLabel: "夜",
     count: 1,
     next: "buffer"
@@ -34,16 +34,16 @@ const SHIFT_TYPES = {
 };
 
 const INITIAL_STAFF = [
-  { id: "staff-01", name: "スタッフ01", skill: "昼対応" },
-  { id: "staff-02", name: "スタッフ02", skill: "昼対応" },
-  { id: "staff-03", name: "スタッフ03", skill: "昼対応" },
-  { id: "staff-04", name: "スタッフ04", skill: "昼対応" },
-  { id: "staff-05", name: "スタッフ05", skill: "夜対応" },
-  { id: "staff-06", name: "スタッフ06", skill: "夜対応" },
-  { id: "staff-07", name: "スタッフ07", skill: "バッファー候補" },
-  { id: "staff-08", name: "スタッフ08", skill: "休み想定" },
-  { id: "staff-09", name: "スタッフ09", skill: "休み想定" },
-  { id: "staff-10", name: "スタッフ10", skill: "休み想定" }
+  { id: "staff-01", name: "スタッフ01" },
+  { id: "staff-02", name: "スタッフ02" },
+  { id: "staff-03", name: "スタッフ03" },
+  { id: "staff-04", name: "スタッフ04" },
+  { id: "staff-05", name: "スタッフ05" },
+  { id: "staff-06", name: "スタッフ06" },
+  { id: "staff-07", name: "スタッフ07" },
+  { id: "staff-08", name: "スタッフ08" },
+  { id: "staff-09", name: "スタッフ09" },
+  { id: "staff-10", name: "スタッフ10" }
 ];
 
 function toDateString(date) {
@@ -120,7 +120,7 @@ function getInitialState() {
     staffList: INITIAL_STAFF,
     assignments: createDefaultAssignments(today, INITIAL_STAFF),
     operationMemo:
-      "昼・夜はそれぞれ最低2人を下回らないか確認する。バッファーは1人=0.5換算の補填候補枠であり、即時補填や休日呼び出しを保証するものではない。"
+      "日勤・夜勤はそれぞれ最低2人を下回らないか確認する。バッファーは1人=0.5換算の補填候補枠であり、即時補填や休日呼び出しを保証するものではない。"
   };
 }
 
@@ -206,11 +206,11 @@ function getDayStatus(dayCounts) {
   const alerts = [];
 
   if (dayCounts.dayPeople < MIN_DAY_COUNT) {
-    alerts.push(`昼が最低人員${MIN_DAY_COUNT}人を下回っています`);
+    alerts.push(`日勤が最低人員${MIN_DAY_COUNT}人を下回っています`);
   }
 
   if (dayCounts.nightPeople < MIN_NIGHT_COUNT) {
-    alerts.push(`夜が最低人員${MIN_NIGHT_COUNT}人を下回っています`);
+    alerts.push(`夜勤が最低人員${MIN_NIGHT_COUNT}人を下回っています`);
   }
 
   if (rawShortage > 0 && dayCounts.bufferCount > 0) {
@@ -225,7 +225,7 @@ function getDayStatus(dayCounts) {
     return {
       level: "normal",
       label: "通常",
-      message: "昼・夜ともに最低人員を満たしています。",
+      message: "日勤・夜勤ともに最低人員を満たしています。",
       dayShortage,
       nightShortage,
       rawShortage,
@@ -461,7 +461,7 @@ function App() {
 
       <section className="control-card">
         <div className="control-grid">
-          <label className="control-field control-field--date">
+          <label className="control-field">
             <span>週の開始日</span>
             <input
               type="date"
@@ -486,7 +486,7 @@ function App() {
 
           <div className="minimum-note">
             <span>最低人員</span>
-            <strong>昼2人 / 夜2人</strong>
+            <strong>日勤2人 / 夜勤2人</strong>
           </div>
 
           <div className="week-actions">
@@ -523,12 +523,12 @@ function App() {
         </article>
 
         <article>
-          <span>昼</span>
+          <span>日勤</span>
           <strong>{activeCounts.dayPeople}</strong>
         </article>
 
         <article>
-          <span>夜</span>
+          <span>夜勤</span>
           <strong>{activeCounts.nightPeople}</strong>
         </article>
 
@@ -558,12 +558,12 @@ function App() {
           <div>
             <h2>週次シフト表</h2>
             <p>
-              横にスライドできます。セルをタップすると「休 → 昼 → 夜 → 候 → 休」で切り替わります。
+              横にスライドできます。セルをタップすると「休 → 日 → 夜 → 候 → 休」で切り替わります。
             </p>
           </div>
 
           <div className="legend">
-            <span className="legend-item legend-item--day">昼 1.0</span>
+            <span className="legend-item legend-item--day">日 1.0</span>
             <span className="legend-item legend-item--night">夜 1.0</span>
             <span className="legend-item legend-item--buffer">候 0.5</span>
             <span className="legend-item legend-item--off">休 0</span>
@@ -607,7 +607,6 @@ function App() {
                 <tr key={staff.id}>
                   <th className="staff-name">
                     <strong>{staff.name}</strong>
-                    <small>{staff.skill}</small>
                   </th>
 
                   {weekDates.map((dateKey) => {
@@ -662,7 +661,7 @@ function App() {
                       className={`day-total day-total--${dayStatus.level}`}
                       onClick={() => setActiveDate(dateKey)}
                     >
-                      <span>昼 {dayCounts.dayPeople}</span>
+                      <span>日 {dayCounts.dayPeople}</span>
                       <span>夜 {dayCounts.nightPeople}</span>
                       <span>候 {dayCounts.bufferCount.toFixed(1)}</span>
                       <strong>不足 {dayStatus.adjustedShortage.toFixed(1)}</strong>
@@ -690,11 +689,14 @@ function App() {
         <section className="info-card">
           <h2>この画面の扱い</h2>
           <p className="note-text">
-            昼・夜は1.0、バッファーは0.5、休みは0として扱います。
+            日勤・夜勤は1.0、バッファーは0.5、休みは0として扱います。
           </p>
           <p className="note-text">
             バッファーは、即時補填や休日呼び出しを保証するものではありません。
             欠員時の補填候補として事前に整理するための枠です。
+          </p>
+          <p className="note-text">
+            具体的な勤務時刻は、実運用・勤怠・契約に関わるため、このプロトタイプでは固定しません。
           </p>
           <p className="note-text">
             実際の勤怠・契約・単価・待機扱い・顧客報告は、
