@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
-const STORAGE_KEY = "staff-guard-map-shift-table-v8";
+const STORAGE_KEY = "staff-guard-map-shift-table-v9";
 
 const MIN_DAY_COUNT = 2;
 const MIN_NIGHT_COUNT = 2;
@@ -79,14 +79,6 @@ function isWeekend(dateString) {
   return day === 0 || day === 6;
 }
 
-function formatYen(value) {
-  return new Intl.NumberFormat("ja-JP", {
-    style: "currency",
-    currency: "JPY",
-    maximumFractionDigits: 0
-  }).format(value);
-}
-
 function getDefaultShiftByStaffIndex(staffIndex) {
   if (staffIndex < 2) {
     return "day";
@@ -124,7 +116,6 @@ function getInitialState() {
   return {
     startDate: today,
     activeDate: today,
-    unitCost: 10000,
     staffList: INITIAL_STAFF,
     assignments: createDefaultAssignments(today, INITIAL_STAFF),
     operationMemo:
@@ -146,8 +137,6 @@ function loadSavedState() {
     return {
       startDate: parsed.startDate || fallback.startDate,
       activeDate: parsed.activeDate || parsed.startDate || fallback.activeDate,
-      unitCost:
-        typeof parsed.unitCost === "number" ? parsed.unitCost : fallback.unitCost,
       staffList: Array.isArray(parsed.staffList)
         ? parsed.staffList
         : fallback.staffList,
@@ -174,18 +163,15 @@ function getDayCounts(dateKey, assignments, staffList) {
 
       if (shiftType === "day") {
         acc.dayPeople += 1;
-        acc.totalCount += SHIFT_TYPES.day.count;
       }
 
       if (shiftType === "night") {
         acc.nightPeople += 1;
-        acc.totalCount += SHIFT_TYPES.night.count;
       }
 
       if (shiftType === "buffer") {
         acc.bufferPeople += 1;
         acc.bufferCount += SHIFT_TYPES.buffer.count;
-        acc.totalCount += SHIFT_TYPES.buffer.count;
       }
 
       if (shiftType === "off") {
@@ -199,8 +185,7 @@ function getDayCounts(dateKey, assignments, staffList) {
       nightPeople: 0,
       bufferPeople: 0,
       offPeople: 0,
-      bufferCount: 0,
-      totalCount: 0
+      bufferCount: 0
     }
   );
 }
@@ -289,7 +274,6 @@ function App() {
 
   const [startDate, setStartDate] = useState(initialState.startDate);
   const [activeDate, setActiveDate] = useState(initialState.activeDate);
-  const [unitCost, setUnitCost] = useState(initialState.unitCost);
   const [staffList, setStaffList] = useState(initialState.staffList);
   const [assignments, setAssignments] = useState(initialState.assignments);
   const [operationMemo, setOperationMemo] = useState(initialState.operationMemo);
@@ -309,25 +293,16 @@ function App() {
     const saveData = {
       startDate,
       activeDate: selectedDate,
-      unitCost,
       staffList,
       assignments: visibleAssignments,
       operationMemo
     };
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData));
-  }, [
-    startDate,
-    selectedDate,
-    unitCost,
-    staffList,
-    visibleAssignments,
-    operationMemo
-  ]);
+  }, [startDate, selectedDate, staffList, visibleAssignments, operationMemo]);
 
   const activeCounts = getDayCounts(selectedDate, visibleAssignments, staffList);
   const activeStatus = getDayStatus(activeCounts);
-  const activeCost = activeCounts.totalCount * unitCost;
 
   const handleMoveWeek = (amount) => {
     const nextStartDate = addDays(startDate, amount * 7);
@@ -441,7 +416,6 @@ function App() {
 
     setStartDate(resetState.startDate);
     setActiveDate(resetState.activeDate);
-    setUnitCost(resetState.unitCost);
     setStaffList(resetState.staffList);
     setAssignments(resetState.assignments);
     setOperationMemo(resetState.operationMemo);
@@ -470,17 +444,6 @@ function App() {
                 setStartDate(event.target.value);
                 setActiveDate(event.target.value);
               }}
-            />
-          </label>
-
-          <label className="control-field">
-            <span>1.0あたり人件費</span>
-            <input
-              type="number"
-              min="0"
-              step="1000"
-              value={unitCost}
-              onChange={(event) => setUnitCost(Number(event.target.value))}
             />
           </label>
 
@@ -545,11 +508,6 @@ function App() {
         <article className={`summary-shortage summary-shortage--${activeStatus.level}`}>
           <span>不足見込み</span>
           <strong>{activeStatus.adjustedShortage.toFixed(1)}</strong>
-        </article>
-
-        <article className="summary-cost">
-          <span>概算人件費</span>
-          <strong>{formatYen(activeCost)}</strong>
         </article>
       </section>
 
@@ -653,7 +611,6 @@ function App() {
                     staffList
                   );
                   const dayStatus = getDayStatus(dayCounts);
-                  const dayCost = dayCounts.totalCount * unitCost;
 
                   return (
                     <td
@@ -665,7 +622,6 @@ function App() {
                       <span>夜 {dayCounts.nightPeople}</span>
                       <span>候 {dayCounts.bufferCount.toFixed(1)}</span>
                       <strong>不足 {dayStatus.adjustedShortage.toFixed(1)}</strong>
-                      <em>{formatYen(dayCost)}</em>
                     </td>
                   );
                 })}
@@ -699,7 +655,7 @@ function App() {
             具体的な勤務時刻は、実運用・勤怠・契約に関わるため、このプロトタイプでは固定しません。
           </p>
           <p className="note-text">
-            実際の勤怠・契約・単価・待機扱い・顧客報告は、
+            実際の勤怠・契約・待機扱い・顧客報告は、
             上長・営業・管理側との確認が必要です。
           </p>
 
