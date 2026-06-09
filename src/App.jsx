@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
-const STORAGE_KEY = "staff-guard-map-shift-table-v7";
+const STORAGE_KEY = "staff-guard-map-shift-table-v8";
 
 const MIN_DAY_COUNT = 2;
 const MIN_NIGHT_COUNT = 2;
@@ -87,6 +87,22 @@ function formatYen(value) {
   }).format(value);
 }
 
+function getDefaultShiftByStaffIndex(staffIndex) {
+  if (staffIndex < 2) {
+    return "day";
+  }
+
+  if (staffIndex < 4) {
+    return "night";
+  }
+
+  if (staffIndex === 4) {
+    return "buffer";
+  }
+
+  return "off";
+}
+
 function createDefaultAssignments(startDate, staffList) {
   const assignments = {};
 
@@ -95,15 +111,7 @@ function createDefaultAssignments(startDate, staffList) {
     assignments[dateKey] = {};
 
     staffList.forEach((staff, staffIndex) => {
-      if (staffIndex < 4) {
-        assignments[dateKey][staff.id] = "day";
-      } else if (staffIndex < 6) {
-        assignments[dateKey][staff.id] = "night";
-      } else if (staffIndex === 6) {
-        assignments[dateKey][staff.id] = "buffer";
-      } else {
-        assignments[dateKey][staff.id] = "off";
-      }
+      assignments[dateKey][staff.id] = getDefaultShiftByStaffIndex(staffIndex);
     });
   }
 
@@ -226,8 +234,6 @@ function getDayStatus(dayCounts) {
       level: "normal",
       label: "通常",
       message: "日勤・夜勤ともに最低人員を満たしています。",
-      dayShortage,
-      nightShortage,
       rawShortage,
       adjustedShortage,
       alerts
@@ -238,10 +244,7 @@ function getDayStatus(dayCounts) {
     return {
       level: "warning",
       label: "注意",
-      message:
-        "最低人員割れがあります。バッファー候補の確認が必要です。",
-      dayShortage,
-      nightShortage,
+      message: "最低人員割れがあります。バッファー候補の確認が必要です。",
       rawShortage,
       adjustedShortage,
       alerts
@@ -253,8 +256,6 @@ function getDayStatus(dayCounts) {
     label: "不足",
     message:
       "バッファー候補を含めても不足見込みがあります。上長・営業側への相談が必要です。",
-    dayShortage,
-    nightShortage,
     rawShortage,
     adjustedShortage,
     alerts
@@ -273,15 +274,7 @@ function ensureWeekAssignments(currentAssignments, weekDates, staffList) {
 
     staffList.forEach((staff, staffIndex) => {
       if (!nextDayAssignments[staff.id]) {
-        if (staffIndex < 4) {
-          nextDayAssignments[staff.id] = "day";
-        } else if (staffIndex < 6) {
-          nextDayAssignments[staff.id] = "night";
-        } else if (staffIndex === 6) {
-          nextDayAssignments[staff.id] = "buffer";
-        } else {
-          nextDayAssignments[staff.id] = "off";
-        }
+        nextDayAssignments[staff.id] = getDefaultShiftByStaffIndex(staffIndex);
       }
     });
 
@@ -323,7 +316,14 @@ function App() {
     };
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData));
-  }, [startDate, selectedDate, unitCost, staffList, visibleAssignments, operationMemo]);
+  }, [
+    startDate,
+    selectedDate,
+    unitCost,
+    staffList,
+    visibleAssignments,
+    operationMemo
+  ]);
 
   const activeCounts = getDayCounts(selectedDate, visibleAssignments, staffList);
   const activeStatus = getDayStatus(activeCounts);
