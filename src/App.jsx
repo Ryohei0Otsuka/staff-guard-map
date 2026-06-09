@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
-const STORAGE_KEY = "staff-guard-map-shift-table-v10";
+const STORAGE_KEY = "staff-guard-map-shift-table-v11";
 
 const MIN_DAY_COUNT = 2;
 const MIN_NIGHT_COUNT = 2;
@@ -242,11 +242,15 @@ function getDayStatus(dayCounts) {
   const alerts = [];
 
   if (dayCounts.dayPeople < MIN_DAY_COUNT) {
-    alerts.push(`日勤が最低人員${MIN_DAY_COUNT}人を下回っています`);
+    alerts.push(
+      `日勤が最低人員を下回っています（${dayCounts.dayPeople}/${MIN_DAY_COUNT}人）`
+    );
   }
 
   if (dayCounts.nightPeople < MIN_NIGHT_COUNT) {
-    alerts.push(`夜勤が最低人員${MIN_NIGHT_COUNT}人を下回っています`);
+    alerts.push(
+      `夜勤が最低人員を下回っています（${dayCounts.nightPeople}/${MIN_NIGHT_COUNT}人）`
+    );
   }
 
   if (rawShortage > 0 && dayCounts.bufferCount > 0) {
@@ -262,6 +266,8 @@ function getDayStatus(dayCounts) {
       level: "normal",
       label: "通常",
       message: "日勤・夜勤ともに最低人員を満たしています。",
+      dayShortage,
+      nightShortage,
       rawShortage,
       adjustedShortage,
       alerts
@@ -273,6 +279,8 @@ function getDayStatus(dayCounts) {
       level: "warning",
       label: "注意",
       message: "最低人員割れがあります。バッファー候補の確認が必要です。",
+      dayShortage,
+      nightShortage,
       rawShortage,
       adjustedShortage,
       alerts
@@ -284,6 +292,8 @@ function getDayStatus(dayCounts) {
     label: "不足",
     message:
       "バッファー候補を含めても不足見込みがあります。上長・営業側への相談が必要です。",
+    dayShortage,
+    nightShortage,
     rawShortage,
     adjustedShortage,
     alerts
@@ -549,12 +559,16 @@ function App() {
 
         <article>
           <span>日勤</span>
-          <strong>{activeCounts.dayPeople}</strong>
+          <strong>
+            {activeCounts.dayPeople}/{MIN_DAY_COUNT}
+          </strong>
         </article>
 
         <article>
           <span>夜勤</span>
-          <strong>{activeCounts.nightPeople}</strong>
+          <strong>
+            {activeCounts.nightPeople}/{MIN_NIGHT_COUNT}
+          </strong>
         </article>
 
         <article>
@@ -583,10 +597,10 @@ function App() {
           </div>
 
           <div className="legend">
-            <span className="legend-item legend-item--day">日 1.0</span>
-            <span className="legend-item legend-item--night">夜 1.0</span>
-            <span className="legend-item legend-item--buffer">候 0.5</span>
-            <span className="legend-item legend-item--off">休 0</span>
+            <span className="legend-item legend-item--day">日勤 1人</span>
+            <span className="legend-item legend-item--night">夜勤 1人</span>
+            <span className="legend-item legend-item--buffer">候補 0.5人</span>
+            <span className="legend-item legend-item--off">休み 0人</span>
           </div>
         </div>
 
@@ -680,8 +694,12 @@ function App() {
                       className={`day-total day-total--${dayStatus.level}`}
                       onClick={() => setActiveDate(dateKey)}
                     >
-                      <span>日 {dayCounts.dayPeople}</span>
-                      <span>夜 {dayCounts.nightPeople}</span>
+                      <span>
+                        日 {dayCounts.dayPeople}/{MIN_DAY_COUNT}
+                      </span>
+                      <span>
+                        夜 {dayCounts.nightPeople}/{MIN_NIGHT_COUNT}
+                      </span>
                       <span>候 {dayCounts.bufferCount.toFixed(1)}</span>
                       <strong>不足 {dayStatus.adjustedShortage.toFixed(1)}</strong>
                     </td>
@@ -707,7 +725,10 @@ function App() {
         <section className="info-card">
           <h2>この画面の扱い</h2>
           <p className="note-text">
-            日勤・夜勤は1.0、バッファーは0.5、休みは0として扱います。
+            日勤・夜勤は1人、バッファーは0.5人、休みは0人として扱います。
+          </p>
+          <p className="note-text">
+            日勤・夜勤はそれぞれ2人未満の場合にアラートを表示します。
           </p>
           <p className="note-text">
             バッファーは、即時補填や休日呼び出しを保証するものではありません。
