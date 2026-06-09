@@ -1,20 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
-const STORAGE_KEY = "staff-guard-map-shift-table-v5";
+const STORAGE_KEY = "staff-guard-map-shift-table-v6";
 
 const MIN_DAY_COUNT = 2;
 const MIN_NIGHT_COUNT = 2;
 
 const SHIFT_TYPES = {
   day: {
-    label: "日勤",
-    shortLabel: "日",
+    label: "昼",
+    shortLabel: "昼",
     count: 1,
     next: "night"
   },
   night: {
-    label: "夜勤",
+    label: "夜",
     shortLabel: "夜",
     count: 1,
     next: "buffer"
@@ -34,12 +34,12 @@ const SHIFT_TYPES = {
 };
 
 const INITIAL_STAFF = [
-  { id: "staff-01", name: "スタッフ01", skill: "日勤対応" },
-  { id: "staff-02", name: "スタッフ02", skill: "日勤対応" },
-  { id: "staff-03", name: "スタッフ03", skill: "日勤対応" },
-  { id: "staff-04", name: "スタッフ04", skill: "日勤対応" },
-  { id: "staff-05", name: "スタッフ05", skill: "夜勤対応" },
-  { id: "staff-06", name: "スタッフ06", skill: "夜勤対応" },
+  { id: "staff-01", name: "スタッフ01", skill: "昼対応" },
+  { id: "staff-02", name: "スタッフ02", skill: "昼対応" },
+  { id: "staff-03", name: "スタッフ03", skill: "昼対応" },
+  { id: "staff-04", name: "スタッフ04", skill: "昼対応" },
+  { id: "staff-05", name: "スタッフ05", skill: "夜対応" },
+  { id: "staff-06", name: "スタッフ06", skill: "夜対応" },
   { id: "staff-07", name: "スタッフ07", skill: "バッファー候補" },
   { id: "staff-08", name: "スタッフ08", skill: "休み想定" },
   { id: "staff-09", name: "スタッフ09", skill: "休み想定" },
@@ -79,6 +79,14 @@ function isWeekend(dateString) {
   return day === 0 || day === 6;
 }
 
+function formatYen(value) {
+  return new Intl.NumberFormat("ja-JP", {
+    style: "currency",
+    currency: "JPY",
+    maximumFractionDigits: 0
+  }).format(value);
+}
+
 function createDefaultAssignments(startDate, staffList) {
   const assignments = {};
 
@@ -107,13 +115,12 @@ function getInitialState() {
 
   return {
     startDate: today,
-    requiredDayCount: MIN_DAY_COUNT,
-    requiredNightCount: MIN_NIGHT_COUNT,
     activeDate: today,
+    unitCost: 10000,
     staffList: INITIAL_STAFF,
     assignments: createDefaultAssignments(today, INITIAL_STAFF),
     operationMemo:
-      "欠員時は、日勤・夜勤それぞれ2人未満になっていないか確認する。バッファーは即時補填保証ではなく、補填候補枠として扱う。"
+      "昼・夜はそれぞれ最低2人を下回らないか確認する。バッファーは1人=0.5換算の補填候補枠であり、即時補填や休日呼び出しを保証するものではない。"
   };
 }
 
@@ -130,15 +137,9 @@ function loadSavedState() {
 
     return {
       startDate: parsed.startDate || fallback.startDate,
-      requiredDayCount:
-        typeof parsed.requiredDayCount === "number"
-          ? parsed.requiredDayCount
-          : fallback.requiredDayCount,
-      requiredNightCount:
-        typeof parsed.requiredNightCount === "number"
-          ? parsed.requiredNightCount
-          : fallback.requiredNightCount,
       activeDate: parsed.activeDate || parsed.startDate || fallback.activeDate,
+      unitCost:
+        typeof parsed.unitCost === "number" ? parsed.unitCost : fallback.unitCost,
       staffList: Array.isArray(parsed.staffList)
         ? parsed.staffList
         : fallback.staffList,
@@ -165,17 +166,18 @@ function getDayCounts(dateKey, assignments, staffList) {
 
       if (shiftType === "day") {
         acc.dayPeople += 1;
-        acc.dayCount += SHIFT_TYPES.day.count;
+        acc.totalCount += SHIFT_TYPES.day.count;
       }
 
       if (shiftType === "night") {
         acc.nightPeople += 1;
-        acc.nightCount += SHIFT_TYPES.night.count;
+        acc.totalCount += SHIFT_TYPES.night.count;
       }
 
       if (shiftType === "buffer") {
         acc.bufferPeople += 1;
         acc.bufferCount += SHIFT_TYPES.buffer.count;
+        acc.totalCount += SHIFT_TYPES.buffer.count;
       }
 
       if (shiftType === "off") {
@@ -189,34 +191,33 @@ function getDayCounts(dateKey, assignments, staffList) {
       nightPeople: 0,
       bufferPeople: 0,
       offPeople: 0,
-      dayCount: 0,
-      nightCount: 0,
-      bufferCount: 0
+      bufferCount: 0,
+      totalCount: 0
     }
   );
 }
 
-function getDayStatus(requiredDayCount, requiredNightCount, dayCounts) {
-  const dayShortage = Math.max(requiredDayCount - dayCounts.dayCount, 0);
-  const nightShortage = Math.max(requiredNightCount - dayCounts.nightCount, 0);
+function getDayStatus(dayCounts) {
+  const dayShortage = Math.max(MIN_DAY_COUNT - dayCounts.dayPeople, 0);
+  const nightShortage = Math.max(MIN_NIGHT_COUNT - dayCounts.nightPeople, 0);
   const rawShortage = dayShortage + nightShortage;
   const adjustedShortage = Math.max(rawShortage - dayCounts.bufferCount, 0);
 
   const alerts = [];
 
-  if (dayCounts.dayCount < requiredDayCount) {
-    alerts.push(`日勤が最低人員${requiredDayCount}人を下回っています`);
+  if (dayCounts.dayPeople < MIN_DAY_COUNT) {
+    alerts.push(`昼が最低人員${MIN_DAY_COUNT}人を下回っています`);
   }
 
-  if (dayCounts.nightCount < requiredNightCount) {
-    alerts.push(`夜勤が最低人員${requiredNightCount}人を下回っています`);
+  if (dayCounts.nightPeople < MIN_NIGHT_COUNT) {
+    alerts.push(`夜が最低人員${MIN_NIGHT_COUNT}人を下回っています`);
   }
 
   if (rawShortage > 0 && dayCounts.bufferCount > 0) {
     alerts.push(
       `バッファー候補 ${dayCounts.bufferCount.toFixed(
         1
-      )} 人分を確認してください`
+      )} 人分の確認が必要です`
     );
   }
 
@@ -224,7 +225,7 @@ function getDayStatus(requiredDayCount, requiredNightCount, dayCounts) {
     return {
       level: "normal",
       label: "通常",
-      message: "日勤・夜勤ともに最低人員を満たしています。",
+      message: "昼・夜ともに最低人員を満たしています。",
       dayShortage,
       nightShortage,
       rawShortage,
@@ -294,13 +295,8 @@ function App() {
   const initialState = useMemo(() => loadSavedState(), []);
 
   const [startDate, setStartDate] = useState(initialState.startDate);
-  const [requiredDayCount, setRequiredDayCount] = useState(
-    initialState.requiredDayCount
-  );
-  const [requiredNightCount, setRequiredNightCount] = useState(
-    initialState.requiredNightCount
-  );
   const [activeDate, setActiveDate] = useState(initialState.activeDate);
+  const [unitCost, setUnitCost] = useState(initialState.unitCost);
   const [staffList, setStaffList] = useState(initialState.staffList);
   const [assignments, setAssignments] = useState(initialState.assignments);
   const [operationMemo, setOperationMemo] = useState(initialState.operationMemo);
@@ -319,31 +315,19 @@ function App() {
   useEffect(() => {
     const saveData = {
       startDate,
-      requiredDayCount,
-      requiredNightCount,
       activeDate: selectedDate,
+      unitCost,
       staffList,
       assignments: visibleAssignments,
       operationMemo
     };
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData));
-  }, [
-    startDate,
-    requiredDayCount,
-    requiredNightCount,
-    selectedDate,
-    staffList,
-    visibleAssignments,
-    operationMemo
-  ]);
+  }, [startDate, selectedDate, unitCost, staffList, visibleAssignments, operationMemo]);
 
   const activeCounts = getDayCounts(selectedDate, visibleAssignments, staffList);
-  const activeStatus = getDayStatus(
-    requiredDayCount,
-    requiredNightCount,
-    activeCounts
-  );
+  const activeStatus = getDayStatus(activeCounts);
+  const activeCost = activeCounts.totalCount * unitCost;
 
   const handleMoveWeek = (amount) => {
     const nextStartDate = addDays(startDate, amount * 7);
@@ -456,9 +440,8 @@ function App() {
     const resetState = getInitialState();
 
     setStartDate(resetState.startDate);
-    setRequiredDayCount(resetState.requiredDayCount);
-    setRequiredNightCount(resetState.requiredNightCount);
     setActiveDate(resetState.activeDate);
+    setUnitCost(resetState.unitCost);
     setStaffList(resetState.staffList);
     setAssignments(resetState.assignments);
     setOperationMemo(resetState.operationMemo);
@@ -491,28 +474,20 @@ function App() {
           </label>
 
           <label className="control-field">
-            <span>日勤 最低人員</span>
+            <span>1.0あたり人件費</span>
             <input
               type="number"
               min="0"
-              step="1"
-              value={requiredDayCount}
-              onChange={(event) => setRequiredDayCount(Number(event.target.value))}
+              step="1000"
+              value={unitCost}
+              onChange={(event) => setUnitCost(Number(event.target.value))}
             />
           </label>
 
-          <label className="control-field">
-            <span>夜勤 最低人員</span>
-            <input
-              type="number"
-              min="0"
-              step="1"
-              value={requiredNightCount}
-              onChange={(event) =>
-                setRequiredNightCount(Number(event.target.value))
-              }
-            />
-          </label>
+          <div className="minimum-note">
+            <span>最低人員</span>
+            <strong>昼2人 / 夜2人</strong>
+          </div>
 
           <div className="week-actions">
             <button type="button" onClick={() => handleMoveWeek(-1)}>
@@ -548,13 +523,13 @@ function App() {
         </article>
 
         <article>
-          <span>日勤</span>
-          <strong>{activeCounts.dayCount.toFixed(1)}</strong>
+          <span>昼</span>
+          <strong>{activeCounts.dayPeople}</strong>
         </article>
 
         <article>
-          <span>夜勤</span>
-          <strong>{activeCounts.nightCount.toFixed(1)}</strong>
+          <span>夜</span>
+          <strong>{activeCounts.nightPeople}</strong>
         </article>
 
         <article>
@@ -571,6 +546,11 @@ function App() {
           <span>不足見込み</span>
           <strong>{activeStatus.adjustedShortage.toFixed(1)}</strong>
         </article>
+
+        <article className="summary-cost">
+          <span>概算人件費</span>
+          <strong>{formatYen(activeCost)}</strong>
+        </article>
       </section>
 
       <section className="shift-table-card">
@@ -578,12 +558,12 @@ function App() {
           <div>
             <h2>週次シフト表</h2>
             <p>
-              横にスライドできます。セルをタップすると「休 → 日 → 夜 → 候 → 休」で切り替わります。
+              横にスライドできます。セルをタップすると「休 → 昼 → 夜 → 候 → 休」で切り替わります。
             </p>
           </div>
 
           <div className="legend">
-            <span className="legend-item legend-item--day">日 1.0</span>
+            <span className="legend-item legend-item--day">昼 1.0</span>
             <span className="legend-item legend-item--night">夜 1.0</span>
             <span className="legend-item legend-item--buffer">候 0.5</span>
             <span className="legend-item legend-item--off">休 0</span>
@@ -601,11 +581,7 @@ function App() {
                     visibleAssignments,
                     staffList
                   );
-                  const dayStatus = getDayStatus(
-                    requiredDayCount,
-                    requiredNightCount,
-                    dayCounts
-                  );
+                  const dayStatus = getDayStatus(dayCounts);
 
                   return (
                     <th
@@ -677,11 +653,8 @@ function App() {
                     visibleAssignments,
                     staffList
                   );
-                  const dayStatus = getDayStatus(
-                    requiredDayCount,
-                    requiredNightCount,
-                    dayCounts
-                  );
+                  const dayStatus = getDayStatus(dayCounts);
+                  const dayCost = dayCounts.totalCount * unitCost;
 
                   return (
                     <td
@@ -689,10 +662,11 @@ function App() {
                       className={`day-total day-total--${dayStatus.level}`}
                       onClick={() => setActiveDate(dateKey)}
                     >
-                      <span>日 {dayCounts.dayCount.toFixed(1)}</span>
-                      <span>夜 {dayCounts.nightCount.toFixed(1)}</span>
+                      <span>昼 {dayCounts.dayPeople}</span>
+                      <span>夜 {dayCounts.nightPeople}</span>
                       <span>候 {dayCounts.bufferCount.toFixed(1)}</span>
                       <strong>不足 {dayStatus.adjustedShortage.toFixed(1)}</strong>
+                      <em>{formatYen(dayCost)}</em>
                     </td>
                   );
                 })}
@@ -716,7 +690,7 @@ function App() {
         <section className="info-card">
           <h2>この画面の扱い</h2>
           <p className="note-text">
-            日勤・夜勤は1.0、バッファーは0.5、休みは0として扱います。
+            昼・夜は1.0、バッファーは0.5、休みは0として扱います。
           </p>
           <p className="note-text">
             バッファーは、即時補填や休日呼び出しを保証するものではありません。
