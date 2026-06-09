@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
-const STORAGE_KEY = "staff-guard-map-shift-table-v13";
+const STORAGE_KEY = "staff-guard-map-shift-table-v14";
 
 const DISPLAY_DAYS = 14;
 const MIN_DAY_COUNT = 2;
@@ -80,20 +80,28 @@ function isWeekend(dateString) {
   return day === 0 || day === 6;
 }
 
-function getDefaultShiftByStaffIndex(staffIndex) {
-  if (staffIndex < 2) {
+function getDefaultShiftByStaffIndexAndDay(staffIndex, dayIndex) {
+  const firstTeam = [0, 1, 2, 3, 4];
+  const secondTeam = [5, 6, 7, 8, 9];
+
+  const activeTeam =
+    dayIndex >= 5 && dayIndex <= 9 ? secondTeam : firstTeam;
+
+  if (!activeTeam.includes(staffIndex)) {
+    return "off";
+  }
+
+  const position = activeTeam.indexOf(staffIndex);
+
+  if (position <= 1) {
     return "day";
   }
 
-  if (staffIndex < 4) {
+  if (position <= 3) {
     return "night";
   }
 
-  if (staffIndex === 4) {
-    return "buffer";
-  }
-
-  return "off";
+  return "buffer";
 }
 
 function createDefaultAssignments(startDate, staffList) {
@@ -104,7 +112,10 @@ function createDefaultAssignments(startDate, staffList) {
     assignments[dateKey] = {};
 
     staffList.forEach((staff, staffIndex) => {
-      assignments[dateKey][staff.id] = getDefaultShiftByStaffIndex(staffIndex);
+      assignments[dateKey][staff.id] = getDefaultShiftByStaffIndexAndDay(
+        staffIndex,
+        dayIndex
+      );
     });
   }
 
@@ -120,7 +131,7 @@ function getInitialState() {
     staffList: INITIAL_STAFF,
     assignments: createDefaultAssignments(today, INITIAL_STAFF),
     operationMemo:
-      "日勤・夜勤はそれぞれ最低2人を下回らないか確認する。夜勤の翌日は日勤にしない。5連勤後は日勤・夜勤・バッファー候補にしない。バッファーは1人=0.5換算の補填候補枠であり、即時補填や休日呼び出しを保証するものではない。"
+      "日勤・夜勤はそれぞれ最低2人を下回らないか確認する。夜勤の翌日は日勤にしない。5連勤後は日勤・夜勤・バッファー候補にしない。初期配置は5日単位で担当グループを切り替え、同じ人が連続しすぎない形にしている。バッファーは1人=0.5換算の補填候補枠であり、即時補填や休日呼び出しを保証するものではない。"
   };
 }
 
@@ -163,28 +174,16 @@ function isRestrictedAfterFiveWorkdaysShift(shiftType) {
   return shiftType === "day" || shiftType === "night" || shiftType === "buffer";
 }
 
-function getShiftForDate(dateKey, staffId, assignments, staffList) {
-  const savedShift = assignments[dateKey]?.[staffId];
-
-  if (savedShift) {
-    return savedShift;
-  }
-
-  const staffIndex = staffList.findIndex((staff) => staff.id === staffId);
-  return getDefaultShiftByStaffIndex(staffIndex);
+function getShiftForDate(dateKey, staffId, assignments) {
+  return assignments[dateKey]?.[staffId] || "off";
 }
 
-function getConsecutiveWorkDaysBefore(dateKey, staffId, assignments, staffList) {
+function getConsecutiveWorkDaysBefore(dateKey, staffId, assignments) {
   let count = 0;
 
   for (let offset = 1; offset <= 5; offset += 1) {
     const targetDate = addDays(dateKey, -offset);
-    const shiftType = getShiftForDate(
-      targetDate,
-      staffId,
-      assignments,
-      staffList
-    );
+    const shiftType = getShiftForDate(targetDate, staffId, assignments);
 
     if (!isWorkShift(shiftType)) {
       break;
@@ -196,26 +195,14 @@ function getConsecutiveWorkDaysBefore(dateKey, staffId, assignments, staffList) 
   return count;
 }
 
-function validateShiftAssignment(
-  dateKey,
-  staffId,
-  nextShiftType,
-  assignments,
-  staffList
-) {
+function validateShiftAssignment(dateKey, staffId, nextShiftType, assignments) {
   const previousDate = addDays(dateKey, -1);
-  const previousShift = getShiftForDate(
-    previousDate,
-    staffId,
-    assignments,
-    staffList
-  );
+  const previousShift = getShiftForDate(previousDate, staffId, assignments);
 
   const consecutiveWorkDays = getConsecutiveWorkDaysBefore(
     dateKey,
     staffId,
-    assignments,
-    staffList
+    assignments
   );
 
   if (previousShift === "night" && nextShiftType === "day") {
@@ -231,8 +218,7 @@ function validateShiftAssignment(
   ) {
     return {
       ok: false,
-      message:
-        "5連勤後のため、日勤・夜勤・バッファー候補にはできません。"
+      message: "5連勤後のため、日勤・夜勤・バッファー候補にはできません。"
     };
   }
 
@@ -348,7 +334,7 @@ function getDayStatus(dayCounts) {
 function ensureDisplayAssignments(currentAssignments, displayDates, staffList) {
   const next = { ...currentAssignments };
 
-  displayDates.forEach((dateKey) => {
+  displayDates.forEach((dateKey, dayIndex) => {
     if (!next[dateKey]) {
       next[dateKey] = {};
     }
@@ -357,7 +343,10 @@ function ensureDisplayAssignments(currentAssignments, displayDates, staffList) {
 
     staffList.forEach((staff, staffIndex) => {
       if (!nextDayAssignments[staff.id]) {
-        nextDayAssignments[staff.id] = getDefaultShiftByStaffIndex(staffIndex);
+        nextDayAssignments[staff.id] = getDefaultShiftByStaffIndexAndDay(
+          staffIndex,
+          dayIndex
+        );
       }
     });
 
@@ -430,8 +419,7 @@ function App() {
       dateKey,
       staffId,
       nextShift,
-      visibleAssignments,
-      staffList
+      visibleAssignments
     );
 
     if (!shiftCheck.ok) {
@@ -489,8 +477,7 @@ function App() {
         targetDate,
         targetStaffId,
         targetShift,
-        next,
-        staffList
+        next
       );
 
       if (!shiftCheck.ok) {
@@ -784,6 +771,9 @@ function App() {
           <h2>この画面の扱い</h2>
           <p className="note-text">
             日勤・夜勤は1人、バッファーは0.5人、休みは0人として扱います。
+          </p>
+          <p className="note-text">
+            初期配置は5日単位で担当グループを切り替えています。
           </p>
           <p className="note-text">
             夜勤の翌日は、日勤にできません。
