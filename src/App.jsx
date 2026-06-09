@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
-const STORAGE_KEY = "staff-guard-map-shift-table-v3";
+const STORAGE_KEY = "staff-guard-map-shift-table-v5";
+
+const MIN_DAY_COUNT = 2;
+const MIN_NIGHT_COUNT = 2;
 
 const SHIFT_TYPES = {
   day: {
@@ -14,10 +17,16 @@ const SHIFT_TYPES = {
     label: "夜勤",
     shortLabel: "夜",
     count: 1,
+    next: "buffer"
+  },
+  buffer: {
+    label: "バッファー",
+    shortLabel: "候",
+    count: 0.5,
     next: "off"
   },
   off: {
-    label: "休日",
+    label: "休み",
     shortLabel: "休",
     count: 0,
     next: "day"
@@ -25,16 +34,16 @@ const SHIFT_TYPES = {
 };
 
 const INITIAL_STAFF = [
-  { id: "staff-01", name: "スタッフ01", skill: "監視 / 一次対応" },
-  { id: "staff-02", name: "スタッフ02", skill: "通常作業" },
-  { id: "staff-03", name: "スタッフ03", skill: "ログ確認" },
-  { id: "staff-04", name: "スタッフ04", skill: "手順対応" },
-  { id: "staff-05", name: "スタッフ05", skill: "引き継ぎ" },
+  { id: "staff-01", name: "スタッフ01", skill: "日勤対応" },
+  { id: "staff-02", name: "スタッフ02", skill: "日勤対応" },
+  { id: "staff-03", name: "スタッフ03", skill: "日勤対応" },
+  { id: "staff-04", name: "スタッフ04", skill: "日勤対応" },
+  { id: "staff-05", name: "スタッフ05", skill: "夜勤対応" },
   { id: "staff-06", name: "スタッフ06", skill: "夜勤対応" },
-  { id: "staff-07", name: "スタッフ07", skill: "夜勤対応" },
-  { id: "staff-08", name: "スタッフ08", skill: "休日想定" },
-  { id: "staff-09", name: "スタッフ09", skill: "休日想定" },
-  { id: "staff-10", name: "スタッフ10", skill: "休日想定" }
+  { id: "staff-07", name: "スタッフ07", skill: "バッファー候補" },
+  { id: "staff-08", name: "スタッフ08", skill: "休み想定" },
+  { id: "staff-09", name: "スタッフ09", skill: "休み想定" },
+  { id: "staff-10", name: "スタッフ10", skill: "休み想定" }
 ];
 
 function toDateString(date) {
@@ -78,10 +87,12 @@ function createDefaultAssignments(startDate, staffList) {
     assignments[dateKey] = {};
 
     staffList.forEach((staff, staffIndex) => {
-      if (staffIndex < 5) {
+      if (staffIndex < 4) {
         assignments[dateKey][staff.id] = "day";
-      } else if (staffIndex < 7) {
+      } else if (staffIndex < 6) {
         assignments[dateKey][staff.id] = "night";
+      } else if (staffIndex === 6) {
+        assignments[dateKey][staff.id] = "buffer";
       } else {
         assignments[dateKey][staff.id] = "off";
       }
@@ -96,13 +107,13 @@ function getInitialState() {
 
   return {
     startDate: today,
-    requiredDayCount: 5,
-    requiredNightCount: 2,
+    requiredDayCount: MIN_DAY_COUNT,
+    requiredNightCount: MIN_NIGHT_COUNT,
     activeDate: today,
     staffList: INITIAL_STAFF,
     assignments: createDefaultAssignments(today, INITIAL_STAFF),
     operationMemo:
-      "欠員時は、日勤・夜勤それぞれの必要人数を下回るか確認する。補填や顧客報告の判断は上長・営業側と確認する。"
+      "欠員時は、日勤・夜勤それぞれ2人未満になっていないか確認する。バッファーは即時補填保証ではなく、補填候補枠として扱う。"
   };
 }
 
@@ -154,10 +165,17 @@ function getDayCounts(dateKey, assignments, staffList) {
 
       if (shiftType === "day") {
         acc.dayPeople += 1;
+        acc.dayCount += SHIFT_TYPES.day.count;
       }
 
       if (shiftType === "night") {
         acc.nightPeople += 1;
+        acc.nightCount += SHIFT_TYPES.night.count;
+      }
+
+      if (shiftType === "buffer") {
+        acc.bufferPeople += 1;
+        acc.bufferCount += SHIFT_TYPES.buffer.count;
       }
 
       if (shiftType === "off") {
@@ -169,45 +187,76 @@ function getDayCounts(dateKey, assignments, staffList) {
     {
       dayPeople: 0,
       nightPeople: 0,
-      offPeople: 0
+      bufferPeople: 0,
+      offPeople: 0,
+      dayCount: 0,
+      nightCount: 0,
+      bufferCount: 0
     }
   );
 }
 
 function getDayStatus(requiredDayCount, requiredNightCount, dayCounts) {
-  const dayShortage = Math.max(requiredDayCount - dayCounts.dayPeople, 0);
-  const nightShortage = Math.max(requiredNightCount - dayCounts.nightPeople, 0);
-  const totalShortage = dayShortage + nightShortage;
+  const dayShortage = Math.max(requiredDayCount - dayCounts.dayCount, 0);
+  const nightShortage = Math.max(requiredNightCount - dayCounts.nightCount, 0);
+  const rawShortage = dayShortage + nightShortage;
+  const adjustedShortage = Math.max(rawShortage - dayCounts.bufferCount, 0);
 
-  if (totalShortage <= 0) {
+  const alerts = [];
+
+  if (dayCounts.dayCount < requiredDayCount) {
+    alerts.push(`日勤が最低人員${requiredDayCount}人を下回っています`);
+  }
+
+  if (dayCounts.nightCount < requiredNightCount) {
+    alerts.push(`夜勤が最低人員${requiredNightCount}人を下回っています`);
+  }
+
+  if (rawShortage > 0 && dayCounts.bufferCount > 0) {
+    alerts.push(
+      `バッファー候補 ${dayCounts.bufferCount.toFixed(
+        1
+      )} 人分を確認してください`
+    );
+  }
+
+  if (rawShortage <= 0) {
     return {
       level: "normal",
       label: "通常",
-      message: "日勤・夜勤ともに必要人数を満たしています。",
+      message: "日勤・夜勤ともに最低人員を満たしています。",
       dayShortage,
       nightShortage,
-      totalShortage
+      rawShortage,
+      adjustedShortage,
+      alerts
     };
   }
 
-  if (dayShortage > 0 && nightShortage > 0) {
+  if (adjustedShortage <= 0) {
     return {
-      level: "danger",
-      label: "不足",
-      message: "日勤・夜勤の両方で不足があります。",
+      level: "warning",
+      label: "注意",
+      message:
+        "最低人員割れがあります。バッファー候補の確認が必要です。",
       dayShortage,
       nightShortage,
-      totalShortage
+      rawShortage,
+      adjustedShortage,
+      alerts
     };
   }
 
   return {
-    level: "warning",
-    label: "注意",
-    message: "一部シフトで必要人数を下回っています。",
+    level: "danger",
+    label: "不足",
+    message:
+      "バッファー候補を含めても不足見込みがあります。上長・営業側への相談が必要です。",
     dayShortage,
     nightShortage,
-    totalShortage
+    rawShortage,
+    adjustedShortage,
+    alerts
   };
 }
 
@@ -223,10 +272,12 @@ function ensureWeekAssignments(currentAssignments, weekDates, staffList) {
 
     staffList.forEach((staff, staffIndex) => {
       if (!nextDayAssignments[staff.id]) {
-        if (staffIndex < 5) {
+        if (staffIndex < 4) {
           nextDayAssignments[staff.id] = "day";
-        } else if (staffIndex < 7) {
+        } else if (staffIndex < 6) {
           nextDayAssignments[staff.id] = "night";
+        } else if (staffIndex === 6) {
+          nextDayAssignments[staff.id] = "buffer";
         } else {
           nextDayAssignments[staff.id] = "off";
         }
@@ -421,14 +472,13 @@ function App() {
         <p className="app-kicker">シフト制・体制維持表</p>
         <h1>Staff Guard Map</h1>
         <p className="app-lead">
-          10名体制を前提に、日別の「日勤・夜勤・休日」を表形式で整理します。
-          セルはタップで変更、ドラッグで移動できます。
+          欠員時の体制維持と、バッファー人員の考え方を整理するための検討用プロトタイプです。
         </p>
       </header>
 
       <section className="control-card">
         <div className="control-grid">
-          <label className="control-field">
+          <label className="control-field control-field--date">
             <span>週の開始日</span>
             <input
               type="date"
@@ -441,7 +491,7 @@ function App() {
           </label>
 
           <label className="control-field">
-            <span>日勤 必要人数</span>
+            <span>日勤 最低人員</span>
             <input
               type="number"
               min="0"
@@ -452,7 +502,7 @@ function App() {
           </label>
 
           <label className="control-field">
-            <span>夜勤 必要人数</span>
+            <span>夜勤 最低人員</span>
             <input
               type="number"
               min="0"
@@ -485,26 +535,41 @@ function App() {
             {formatDateLabel(selectedDate)}({formatWeekLabel(selectedDate)})
           </strong>
           <p>{activeStatus.message}</p>
+
+          {activeStatus.alerts.length > 0 && (
+            <div className="shift-alert-list">
+              {activeStatus.alerts.map((alertText) => (
+                <div key={alertText} className="shift-alert">
+                  {alertText}
+                </div>
+              ))}
+            </div>
+          )}
         </article>
 
         <article>
           <span>日勤</span>
-          <strong>{activeCounts.dayPeople}</strong>
+          <strong>{activeCounts.dayCount.toFixed(1)}</strong>
         </article>
 
         <article>
           <span>夜勤</span>
-          <strong>{activeCounts.nightPeople}</strong>
+          <strong>{activeCounts.nightCount.toFixed(1)}</strong>
         </article>
 
         <article>
-          <span>休日</span>
+          <span>候補</span>
+          <strong>{activeCounts.bufferCount.toFixed(1)}</strong>
+        </article>
+
+        <article>
+          <span>休み</span>
           <strong>{activeCounts.offPeople}</strong>
         </article>
 
         <article className={`summary-shortage summary-shortage--${activeStatus.level}`}>
-          <span>不足</span>
-          <strong>{activeStatus.totalShortage}</strong>
+          <span>不足見込み</span>
+          <strong>{activeStatus.adjustedShortage.toFixed(1)}</strong>
         </article>
       </section>
 
@@ -513,14 +578,15 @@ function App() {
           <div>
             <h2>週次シフト表</h2>
             <p>
-              横にスライドできます。セルをタップすると「休 → 日 → 夜 → 休」で切り替わります。
+              横にスライドできます。セルをタップすると「休 → 日 → 夜 → 候 → 休」で切り替わります。
             </p>
           </div>
 
           <div className="legend">
-            <span className="legend-item legend-item--day">日 日勤</span>
-            <span className="legend-item legend-item--night">夜 夜勤</span>
-            <span className="legend-item legend-item--off">休 休日</span>
+            <span className="legend-item legend-item--day">日 1.0</span>
+            <span className="legend-item legend-item--night">夜 1.0</span>
+            <span className="legend-item legend-item--buffer">候 0.5</span>
+            <span className="legend-item legend-item--off">休 0</span>
           </div>
         </div>
 
@@ -592,7 +658,7 @@ function App() {
                           onDragEnd={() => setDraggingCell(null)}
                         >
                           <span>{shift.shortLabel}</span>
-                          <small>{shift.label}</small>
+                          <small>{shift.count.toFixed(1)}</small>
                         </button>
                       </td>
                     );
@@ -623,9 +689,10 @@ function App() {
                       className={`day-total day-total--${dayStatus.level}`}
                       onClick={() => setActiveDate(dateKey)}
                     >
-                      <span>日 {dayCounts.dayPeople}</span>
-                      <span>夜 {dayCounts.nightPeople}</span>
-                      <strong>不足 {dayStatus.totalShortage}</strong>
+                      <span>日 {dayCounts.dayCount.toFixed(1)}</span>
+                      <span>夜 {dayCounts.nightCount.toFixed(1)}</span>
+                      <span>候 {dayCounts.bufferCount.toFixed(1)}</span>
+                      <strong>不足 {dayStatus.adjustedShortage.toFixed(1)}</strong>
                     </td>
                   );
                 })}
@@ -649,7 +716,11 @@ function App() {
         <section className="info-card">
           <h2>この画面の扱い</h2>
           <p className="note-text">
-            この画面は、日勤・夜勤・休日の配置を見える化するための検討用プロトタイプです。
+            日勤・夜勤は1.0、バッファーは0.5、休みは0として扱います。
+          </p>
+          <p className="note-text">
+            バッファーは、即時補填や休日呼び出しを保証するものではありません。
+            欠員時の補填候補として事前に整理するための枠です。
           </p>
           <p className="note-text">
             実際の勤怠・契約・単価・待機扱い・顧客報告は、

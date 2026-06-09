@@ -1,16 +1,54 @@
-# React + Vite
+# Staff Guard Map
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+欠員時の体制維持と、バッファー人員の考え方を整理するための検討用プロトタイプです。
 
-Currently, two official plugins are available:
+公開ページ：
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```text
+https://ryohei0otsuka.github.io/staff-guard-map/
+```
 
-## React Compiler
+## 目的
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+突発的な欠員が発生した場合に、日勤・夜勤ごとの最低人員を下回っていないかを確認し、体制維持上のリスクを見える化します。
 
-## Expanding the ESLint configuration
+このアプリは、人員を単に増やすためのものではなく、以下を整理するための草案です。
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+* 欠員時に最低人員を満たせているか
+* 日勤・夜勤のどちらに不足が出ているか
+* バッファー人員を検討する必要があるか
+* 欠員時に上長・営業・管理側へ相談すべきか
+* 運用上の注意点を残せるか
+
+## シフト区分
+
+現在は、以下の3区分で管理します。
+
+| 区分 | 意味         |
+| -- | ---------- |
+| 日勤 | 日勤帯の稼働人員   |
+| 夜勤 | 夜勤帯の稼働人員   |
+| 休日 | 稼働前提にしない人員 |
+
+※具体的な勤務時刻は、実運用・勤怠・契約に関わるため、このプロトタイプでは固定しません。
+
+## 最低人員
+
+日勤・夜勤それぞれ、2人未満になった場合にアラートを表示します。
+
+| 区分 | 最低人員 |
+| -- | ---: |
+| 日勤 |   2人 |
+| 夜勤 |   2人 |
+
+## バッファー人員の考え方
+
+バッファー人員は、休日でも当然に呼び出せる人員ではありません。
+
+あくまで、欠員時の補填可能性や体制維持のために、事前に検討しておく確認枠です。
+
+実際の稼働可否、勤怠、単価、待機扱い、顧客報告の要否は、上長・営業・管理側との確認が必要です。
+
+## Status
+
+検討用プロトタイプ。

@@ -1,9 +1,9 @@
 .app-shell {
   min-height: 100vh;
-  padding: 14px;
+  padding: 12px;
   color: #172033;
   background:
-    linear-gradient(rgba(245, 247, 251, 0.94), rgba(245, 247, 251, 0.94)),
+    linear-gradient(rgba(245, 247, 251, 0.95), rgba(245, 247, 251, 0.95)),
     repeating-linear-gradient(
       90deg,
       rgba(96, 116, 148, 0.08) 0,
@@ -21,14 +21,20 @@
     #eef2f7;
 }
 
-.app-header {
-  max-width: 1280px;
+.app-header,
+.control-card,
+.shift-table-card,
+.info-card {
+  width: min(100%, 1280px);
   margin: 0 auto 12px;
-  padding: 18px;
   border: 1px solid #d9e0ea;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.96);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.97);
   box-shadow: 0 12px 28px rgba(31, 41, 55, 0.06);
+}
+
+.app-header {
+  padding: 16px;
 }
 
 .app-kicker {
@@ -41,7 +47,7 @@
 .app-header h1 {
   margin: 0;
   color: #0f172a;
-  font-size: clamp(30px, 11vw, 56px);
+  font-size: clamp(30px, 10vw, 54px);
   line-height: 0.95;
   letter-spacing: -0.06em;
 }
@@ -51,17 +57,6 @@
   color: #475569;
   font-size: 13px;
   line-height: 1.75;
-}
-
-.control-card,
-.shift-table-card,
-.info-card {
-  max-width: 1280px;
-  margin: 0 auto 12px;
-  border: 1px solid #d9e0ea;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 12px 28px rgba(31, 41, 55, 0.06);
 }
 
 .control-card {
@@ -74,13 +69,14 @@
   gap: 10px;
 }
 
-.control-field:first-child {
-  grid-column: 1 / -1;
-}
-
 .control-field {
   display: grid;
   gap: 6px;
+  min-width: 0;
+}
+
+.control-field--date {
+  grid-column: 1 / -1;
 }
 
 .control-field span {
@@ -108,7 +104,7 @@
 .week-actions {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -130,9 +126,9 @@
 
 .active-summary {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  max-width: 1280px;
+  width: min(100%, 1280px);
   margin: 0 auto 12px;
 }
 
@@ -140,8 +136,8 @@
   min-width: 0;
   padding: 12px;
   border: 1px solid #d9e0ea;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.96);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.97);
   box-shadow: 0 8px 20px rgba(31, 41, 55, 0.05);
 }
 
@@ -156,7 +152,7 @@
   display: block;
   margin-top: 6px;
   color: #0f172a;
-  font-size: 25px;
+  font-size: 24px;
   line-height: 1;
   letter-spacing: -0.05em;
 }
@@ -176,7 +172,8 @@
   border-color: #bbf7d0;
 }
 
-.summary-main--warning {
+.summary-main--warning,
+.summary-shortage--warning {
   border-color: #fde68a;
 }
 
@@ -185,8 +182,21 @@
   border-color: #fecaca;
 }
 
-.summary-shortage--warning {
-  border-color: #fde68a;
+.shift-alert-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.shift-alert {
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 8px 10px;
+  color: #991b1b;
+  background: #fef2f2;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.5;
 }
 
 .shift-table-card {
@@ -238,13 +248,19 @@
   background: #ede9fe;
 }
 
+.legend-item--buffer {
+  color: #b45309;
+  background: #fef3c7;
+}
+
 .legend-item--off {
   color: #475569;
   background: #e2e8f0;
 }
 
 .shift-table-wrap {
-  overflow-x: auto;
+  overflow: auto;
+  max-width: 100%;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -266,16 +282,17 @@
 .staff-name {
   position: sticky;
   left: 0;
-  z-index: 3;
-  width: 116px;
-  min-width: 116px;
-  max-width: 116px;
+  z-index: 4;
+  width: 112px;
+  min-width: 112px;
+  max-width: 112px;
   background: #f8fafc;
 }
 
 .staff-head {
   top: 0;
-  height: 72px;
+  z-index: 6;
+  height: 70px;
   padding: 8px;
   color: #334155;
   font-size: 12px;
@@ -314,10 +331,10 @@
 .date-head {
   position: sticky;
   top: 0;
-  z-index: 2;
-  width: 86px;
-  min-width: 86px;
-  height: 72px;
+  z-index: 3;
+  width: 82px;
+  min-width: 82px;
+  height: 70px;
   padding: 7px;
   color: #0f172a;
   background: #ffffff;
@@ -377,8 +394,8 @@
 }
 
 .shift-cell {
-  width: 86px;
-  min-width: 86px;
+  width: 82px;
+  min-width: 82px;
   height: 62px;
   padding: 6px;
   background: #ffffff;
@@ -400,6 +417,7 @@
   font-weight: 900;
   touch-action: manipulation;
   user-select: none;
+  cursor: pointer;
 }
 
 .shift-pill span {
@@ -424,6 +442,12 @@
   background: #ede9fe;
 }
 
+.shift-pill--buffer {
+  color: #b45309;
+  border-color: #fde68a;
+  background: #fef3c7;
+}
+
 .shift-pill--off {
   color: #475569;
   border-color: #cbd5e1;
@@ -431,8 +455,8 @@
 }
 
 .day-total {
-  width: 86px;
-  min-width: 86px;
+  width: 82px;
+  min-width: 82px;
   padding: 8px 6px;
   text-align: center;
   background: #f8fafc;
@@ -471,7 +495,7 @@
 .bottom-grid {
   display: grid;
   gap: 12px;
-  max-width: 1280px;
+  width: min(100%, 1280px);
   margin: 0 auto;
 }
 
@@ -523,12 +547,16 @@
     padding: 24px;
   }
 
+  .app-header {
+    padding: 20px;
+  }
+
   .control-grid {
     grid-template-columns: 220px 150px 150px minmax(0, 1fr);
     align-items: end;
   }
 
-  .control-field:first-child {
+  .control-field--date {
     grid-column: auto;
   }
 
@@ -537,29 +565,25 @@
   }
 
   .active-summary {
-    grid-template-columns: 1.4fr repeat(4, 1fr);
+    grid-template-columns: 1.5fr repeat(5, minmax(0, 1fr));
   }
 
   .summary-main {
     grid-column: auto;
   }
 
+  .staff-head,
+  .staff-name {
+    width: 166px;
+    min-width: 166px;
+    max-width: 166px;
+  }
+
   .date-head,
   .shift-cell,
   .day-total {
-    width: 118px;
-    min-width: 118px;
-  }
-
-  .staff-head,
-  .staff-name {
-    width: 170px;
-    min-width: 170px;
-    max-width: 170px;
-  }
-
-  .bottom-grid {
-    grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+    width: 116px;
+    min-width: 116px;
   }
 }
 
@@ -567,7 +591,31 @@
   .date-head,
   .shift-cell,
   .day-total {
-    width: 136px;
-    min-width: 136px;
+    width: 130px;
+    min-width: 130px;
+  }
+
+  .bottom-grid {
+    grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+  }
+}
+
+@media (max-width: 380px) {
+  .staff-head,
+  .staff-name {
+    width: 104px;
+    min-width: 104px;
+    max-width: 104px;
+  }
+
+  .date-head,
+  .shift-cell,
+  .day-total {
+    width: 76px;
+    min-width: 76px;
+  }
+
+  .active-summary strong {
+    font-size: 21px;
   }
 }
