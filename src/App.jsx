@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
-const STORAGE_KEY = "staff-guard-map-shift-table-v15";
+const STORAGE_KEY = "staff-guard-map-shift-table-v16";
 
 const DISPLAY_DAYS = 14;
 const MIN_DAY_COUNT = 2;
@@ -48,6 +48,79 @@ const INITIAL_STAFF = [
   { id: "staff-10", name: "スタッフ10" }
 ];
 
+const DEFAULT_PATTERN = [
+  {
+    day: ["staff-01", "staff-02"],
+    night: ["staff-03", "staff-04"],
+    buffer: ["staff-05"]
+  },
+  {
+    day: ["staff-01", "staff-02"],
+    night: ["staff-05", "staff-06"],
+    buffer: ["staff-07"]
+  },
+  {
+    day: ["staff-03", "staff-04"],
+    night: ["staff-07", "staff-08"],
+    buffer: ["staff-09"]
+  },
+  {
+    day: ["staff-05", "staff-06"],
+    night: ["staff-09", "staff-10"],
+    buffer: ["staff-01"]
+  },
+  {
+    day: ["staff-07", "staff-08"],
+    night: ["staff-01", "staff-02"],
+    buffer: ["staff-03"]
+  },
+  {
+    day: ["staff-09", "staff-10"],
+    night: ["staff-03", "staff-04"],
+    buffer: ["staff-05"]
+  },
+  {
+    day: ["staff-05", "staff-06"],
+    night: ["staff-07", "staff-08"],
+    buffer: ["staff-09"]
+  },
+  {
+    day: ["staff-03", "staff-04"],
+    night: ["staff-09", "staff-10"],
+    buffer: ["staff-01"]
+  },
+  {
+    day: ["staff-07", "staff-08"],
+    night: ["staff-01", "staff-02"],
+    buffer: ["staff-03"]
+  },
+  {
+    day: ["staff-09", "staff-10"],
+    night: ["staff-03", "staff-04"],
+    buffer: ["staff-05"]
+  },
+  {
+    day: ["staff-05", "staff-06"],
+    night: ["staff-07", "staff-08"],
+    buffer: ["staff-09"]
+  },
+  {
+    day: ["staff-03", "staff-04"],
+    night: ["staff-09", "staff-10"],
+    buffer: ["staff-01"]
+  },
+  {
+    day: ["staff-07", "staff-08"],
+    night: ["staff-01", "staff-02"],
+    buffer: ["staff-03"]
+  },
+  {
+    day: ["staff-09", "staff-10"],
+    night: ["staff-03", "staff-04"],
+    buffer: ["staff-05"]
+  }
+];
+
 function toDateString(date) {
   return date.toISOString().slice(0, 10);
 }
@@ -85,215 +158,12 @@ function isWorkShift(shiftType) {
   return shiftType === "day" || shiftType === "night";
 }
 
-function isRestrictedAfterFiveWorkdaysShift(shiftType) {
-  return shiftType === "day" || shiftType === "night" || shiftType === "buffer";
+function isRestShift(shiftType) {
+  return shiftType === "off";
 }
 
 function getShiftForDate(dateKey, staffId, assignments) {
   return assignments[dateKey]?.[staffId] || "off";
-}
-
-function getConsecutiveWorkDaysBefore(dateKey, staffId, assignments) {
-  let count = 0;
-
-  for (let offset = 1; offset <= 5; offset += 1) {
-    const targetDate = addDays(dateKey, -offset);
-    const shiftType = getShiftForDate(targetDate, staffId, assignments);
-
-    if (!isWorkShift(shiftType)) {
-      break;
-    }
-
-    count += 1;
-  }
-
-  return count;
-}
-
-function validateShiftAssignment(dateKey, staffId, nextShiftType, assignments) {
-  const previousDate = addDays(dateKey, -1);
-  const previousShift = getShiftForDate(previousDate, staffId, assignments);
-
-  const consecutiveWorkDays = getConsecutiveWorkDaysBefore(
-    dateKey,
-    staffId,
-    assignments
-  );
-
-  if (previousShift === "night" && nextShiftType === "day") {
-    return {
-      ok: false,
-      message: "夜勤の翌日は日勤にできません。"
-    };
-  }
-
-  if (
-    consecutiveWorkDays >= 5 &&
-    isRestrictedAfterFiveWorkdaysShift(nextShiftType)
-  ) {
-    return {
-      ok: false,
-      message: "5連勤後のため、日勤・夜勤・バッファー候補にはできません。"
-    };
-  }
-
-  return {
-    ok: true,
-    message: ""
-  };
-}
-
-function getStaffTotalAssigned(staffId, assignments) {
-  return Object.values(assignments).reduce((total, dayAssignments) => {
-    const shiftType = dayAssignments?.[staffId] || "off";
-    return shiftType === "off" ? total : total + 1;
-  }, 0);
-}
-
-function getStaffTotalWorkDays(staffId, assignments) {
-  return Object.values(assignments).reduce((total, dayAssignments) => {
-    const shiftType = dayAssignments?.[staffId] || "off";
-    return isWorkShift(shiftType) ? total + 1 : total;
-  }, 0);
-}
-
-function chooseDefaultStaffForShift({
-  dateKey,
-  dayIndex,
-  shiftType,
-  count,
-  assignments,
-  staffList,
-  assignedStaffIds
-}) {
-  return staffList
-    .map((staff, staffIndex) => ({
-      staff,
-      staffIndex,
-      consecutiveWorkDays: getConsecutiveWorkDaysBefore(
-        dateKey,
-        staff.id,
-        assignments
-      ),
-      totalWorkDays: getStaffTotalWorkDays(staff.id, assignments),
-      totalAssignedDays: getStaffTotalAssigned(staff.id, assignments)
-    }))
-    .filter(({ staff }) => {
-      if (assignedStaffIds.has(staff.id)) {
-        return false;
-      }
-
-      return validateShiftAssignment(
-        dateKey,
-        staff.id,
-        shiftType,
-        assignments
-      ).ok;
-    })
-    .sort((a, b) => {
-      if (a.consecutiveWorkDays !== b.consecutiveWorkDays) {
-        return a.consecutiveWorkDays - b.consecutiveWorkDays;
-      }
-
-      if (a.totalWorkDays !== b.totalWorkDays) {
-        return a.totalWorkDays - b.totalWorkDays;
-      }
-
-      if (a.totalAssignedDays !== b.totalAssignedDays) {
-        return a.totalAssignedDays - b.totalAssignedDays;
-      }
-
-      const aRotation = (a.staffIndex - dayIndex + staffList.length) % staffList.length;
-      const bRotation = (b.staffIndex - dayIndex + staffList.length) % staffList.length;
-
-      return aRotation - bRotation;
-    })
-    .slice(0, count)
-    .map(({ staff }) => staff);
-}
-
-function createDefaultAssignments(startDate, staffList) {
-  const assignments = {};
-
-  for (let dayIndex = 0; dayIndex < DISPLAY_DAYS; dayIndex += 1) {
-    const dateKey = addDays(startDate, dayIndex);
-    const assignedStaffIds = new Set();
-
-    assignments[dateKey] = {};
-
-    staffList.forEach((staff) => {
-      assignments[dateKey][staff.id] = "off";
-    });
-
-    const shiftPlan = [
-      { shiftType: "day", count: MIN_DAY_COUNT },
-      { shiftType: "night", count: MIN_NIGHT_COUNT },
-      { shiftType: "buffer", count: DEFAULT_BUFFER_COUNT }
-    ];
-
-    shiftPlan.forEach(({ shiftType, count }) => {
-      const pickedStaff = chooseDefaultStaffForShift({
-        dateKey,
-        dayIndex,
-        shiftType,
-        count,
-        assignments,
-        staffList,
-        assignedStaffIds
-      });
-
-      pickedStaff.forEach((staff) => {
-        assignments[dateKey][staff.id] = shiftType;
-        assignedStaffIds.add(staff.id);
-      });
-    });
-  }
-
-  return assignments;
-}
-
-function getInitialState() {
-  const today = getToday();
-
-  return {
-    startDate: today,
-    activeDate: today,
-    staffList: INITIAL_STAFF,
-    assignments: createDefaultAssignments(today, INITIAL_STAFF),
-    operationMemo:
-      "日勤・夜勤はそれぞれ最低2人を下回らないか確認する。夜勤の翌日は日勤にしない。5連勤後は日勤・夜勤・バッファー候補にしない。初期配置も同じ制約判定を通して生成している。バッファーは1人=0.5換算の補填候補枠であり、即時補填や休日呼び出しを保証するものではない。"
-  };
-}
-
-function loadSavedState() {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-
-    if (!saved) {
-      return getInitialState();
-    }
-
-    const parsed = JSON.parse(saved);
-    const fallback = getInitialState();
-
-    return {
-      startDate: parsed.startDate || fallback.startDate,
-      activeDate: parsed.activeDate || parsed.startDate || fallback.activeDate,
-      staffList: Array.isArray(parsed.staffList)
-        ? parsed.staffList
-        : fallback.staffList,
-      assignments:
-        parsed.assignments && typeof parsed.assignments === "object"
-          ? parsed.assignments
-          : fallback.assignments,
-      operationMemo:
-        typeof parsed.operationMemo === "string"
-          ? parsed.operationMemo
-          : fallback.operationMemo
-    };
-  } catch {
-    return getInitialState();
-  }
 }
 
 function getDayCounts(dateKey, assignments, staffList) {
@@ -399,6 +269,276 @@ function getDayStatus(dayCounts) {
   };
 }
 
+function getDisplayDates(startDate) {
+  return Array.from({ length: DISPLAY_DAYS }, (_, index) =>
+    addDays(startDate, index)
+  );
+}
+
+function getScanDates(displayDates) {
+  if (displayDates.length === 0) {
+    return [];
+  }
+
+  const firstDate = displayDates[0];
+  const lastDate = displayDates[displayDates.length - 1];
+
+  const beforeDates = Array.from({ length: 5 }, (_, index) =>
+    addDays(firstDate, index - 5)
+  );
+
+  const afterDates = [addDays(lastDate, 1)];
+
+  return [...beforeDates, ...displayDates, ...afterDates];
+}
+
+function validateStaffRules(staffId, assignments, displayDates) {
+  const scanDates = getScanDates(displayDates);
+  let consecutiveWorkDays = 0;
+
+  for (let index = 0; index < scanDates.length; index += 1) {
+    const dateKey = scanDates[index];
+    const shiftType = getShiftForDate(dateKey, staffId, assignments);
+    const previousDateKey = scanDates[index - 1];
+    const previousShiftType = previousDateKey
+      ? getShiftForDate(previousDateKey, staffId, assignments)
+      : "off";
+
+    if (previousShiftType === "night" && shiftType === "day") {
+      return {
+        ok: false,
+        message: "夜勤の翌日は日勤にできません。"
+      };
+    }
+
+    if (consecutiveWorkDays >= 5 && !isRestShift(shiftType)) {
+      return {
+        ok: false,
+        message:
+          "5連勤後は休日にしてください。日勤・夜勤・バッファー候補にはできません。"
+      };
+    }
+
+    if (isWorkShift(shiftType)) {
+      consecutiveWorkDays += 1;
+    } else {
+      consecutiveWorkDays = 0;
+    }
+  }
+
+  return {
+    ok: true,
+    message: ""
+  };
+}
+
+function createAssignmentsWithChange(
+  assignments,
+  dateKey,
+  staffId,
+  nextShiftType
+) {
+  return {
+    ...assignments,
+    [dateKey]: {
+      ...(assignments[dateKey] || {}),
+      [staffId]: nextShiftType
+    }
+  };
+}
+
+function validateSingleChange({
+  assignments,
+  displayDates,
+  dateKey,
+  staffId,
+  nextShiftType
+}) {
+  const nextAssignments = createAssignmentsWithChange(
+    assignments,
+    dateKey,
+    staffId,
+    nextShiftType
+  );
+
+  return validateStaffRules(staffId, nextAssignments, displayDates);
+}
+
+function validateMoveChange({
+  assignments,
+  displayDates,
+  fromDate,
+  fromStaffId,
+  targetDate,
+  targetStaffId,
+  targetShift
+}) {
+  const nextAssignments = {
+    ...assignments,
+    [fromDate]: {
+      ...(assignments[fromDate] || {}),
+      [fromStaffId]: "off"
+    },
+    [targetDate]: {
+      ...(assignments[targetDate] || {}),
+      [targetStaffId]: targetShift
+    }
+  };
+
+  const targetCheck = validateStaffRules(
+    targetStaffId,
+    nextAssignments,
+    displayDates
+  );
+
+  if (!targetCheck.ok) {
+    return targetCheck;
+  }
+
+  if (fromStaffId !== targetStaffId) {
+    return validateStaffRules(fromStaffId, nextAssignments, displayDates);
+  }
+
+  return {
+    ok: true,
+    message: ""
+  };
+}
+
+function createDefaultAssignments(startDate, staffList) {
+  const assignments = {};
+  const displayDates = getDisplayDates(startDate);
+
+  displayDates.forEach((dateKey, dayIndex) => {
+    const pattern = DEFAULT_PATTERN[dayIndex] || {
+      day: [],
+      night: [],
+      buffer: []
+    };
+
+    assignments[dateKey] = {};
+
+    staffList.forEach((staff) => {
+      assignments[dateKey][staff.id] = "off";
+    });
+
+    pattern.day.forEach((staffId) => {
+      assignments[dateKey][staffId] = "day";
+    });
+
+    pattern.night.forEach((staffId) => {
+      assignments[dateKey][staffId] = "night";
+    });
+
+    pattern.buffer.forEach((staffId) => {
+      assignments[dateKey][staffId] = "buffer";
+    });
+  });
+
+  return assignments;
+}
+
+function validateDefaultAssignments(assignments, staffList, displayDates) {
+  const ruleError = staffList
+    .map((staff) => validateStaffRules(staff.id, assignments, displayDates))
+    .find((result) => !result.ok);
+
+  if (ruleError) {
+    return ruleError;
+  }
+
+  const countError = displayDates
+    .map((dateKey) => {
+      const dayCounts = getDayCounts(dateKey, assignments, staffList);
+
+      if (dayCounts.dayPeople < MIN_DAY_COUNT) {
+        return {
+          ok: false,
+          message: `${formatDateLabel(
+            dateKey
+          )} の日勤が最低人員を下回っています。`
+        };
+      }
+
+      if (dayCounts.nightPeople < MIN_NIGHT_COUNT) {
+        return {
+          ok: false,
+          message: `${formatDateLabel(
+            dateKey
+          )} の夜勤が最低人員を下回っています。`
+        };
+      }
+
+      if (dayCounts.bufferPeople < DEFAULT_BUFFER_COUNT) {
+        return {
+          ok: false,
+          message: `${formatDateLabel(
+            dateKey
+          )} のバッファー候補が不足しています。`
+        };
+      }
+
+      return {
+        ok: true,
+        message: ""
+      };
+    })
+    .find((result) => !result.ok);
+
+  return (
+    countError || {
+      ok: true,
+      message: ""
+    }
+  );
+}
+
+function getInitialState() {
+  const today = getToday();
+  const staffList = INITIAL_STAFF;
+  const assignments = createDefaultAssignments(today, staffList);
+
+  return {
+    startDate: today,
+    activeDate: today,
+    staffList,
+    assignments,
+    operationMemo:
+      "日勤・夜勤はそれぞれ最低2人を下回らないか確認する。夜勤の翌日は日勤にしない。5連勤後は休日にする。5連勤後は日勤・夜勤・バッファー候補にできない。バッファーは1人=0.5換算の補填候補枠であり、即時補填や休日呼び出しを保証するものではない。"
+  };
+}
+
+function loadSavedState() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+
+    if (!saved) {
+      return getInitialState();
+    }
+
+    const parsed = JSON.parse(saved);
+    const fallback = getInitialState();
+
+    return {
+      startDate: parsed.startDate || fallback.startDate,
+      activeDate: parsed.activeDate || parsed.startDate || fallback.activeDate,
+      staffList: Array.isArray(parsed.staffList)
+        ? parsed.staffList
+        : fallback.staffList,
+      assignments:
+        parsed.assignments && typeof parsed.assignments === "object"
+          ? parsed.assignments
+          : fallback.assignments,
+      operationMemo:
+        typeof parsed.operationMemo === "string"
+          ? parsed.operationMemo
+          : fallback.operationMemo
+    };
+  } catch {
+    return getInitialState();
+  }
+}
+
 function ensureDisplayAssignments(currentAssignments, displayDates, staffList) {
   const defaultAssignments = createDefaultAssignments(displayDates[0], staffList);
   const next = { ...currentAssignments };
@@ -433,11 +573,7 @@ function App() {
   const [operationMemo, setOperationMemo] = useState(initialState.operationMemo);
   const [draggingCell, setDraggingCell] = useState(null);
 
-  const displayDates = useMemo(() => {
-    return Array.from({ length: DISPLAY_DAYS }, (_, index) =>
-      addDays(startDate, index)
-    );
-  }, [startDate]);
+  const displayDates = useMemo(() => getDisplayDates(startDate), [startDate]);
 
   const selectedDate = displayDates.includes(activeDate)
     ? activeDate
@@ -458,6 +594,10 @@ function App() {
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData));
   }, [startDate, selectedDate, staffList, visibleAssignments, operationMemo]);
+
+  const defaultValidation = useMemo(() => {
+    return validateDefaultAssignments(visibleAssignments, staffList, displayDates);
+  }, [visibleAssignments, staffList, displayDates]);
 
   const activeCounts = getDayCounts(selectedDate, visibleAssignments, staffList);
   const activeStatus = getDayStatus(activeCounts);
@@ -480,18 +620,19 @@ function App() {
 
   const handleCellClick = (dateKey, staffId) => {
     const currentShift = visibleAssignments[dateKey]?.[staffId] || "off";
-    let nextShift = SHIFT_TYPES[currentShift].next;
+    const nextShift = SHIFT_TYPES[currentShift].next;
 
-    const shiftCheck = validateShiftAssignment(
+    const shiftCheck = validateSingleChange({
+      assignments: visibleAssignments,
+      displayDates,
       dateKey,
       staffId,
-      nextShift,
-      visibleAssignments
-    );
+      nextShiftType: nextShift
+    });
 
     if (!shiftCheck.ok) {
       window.alert(shiftCheck.message);
-      nextShift = "off";
+      return;
     }
 
     handleChangeShift(dateKey, staffId, nextShift);
@@ -537,20 +678,24 @@ function App() {
 
     const targetShift = payload.shiftType;
 
+    const moveCheck = validateMoveChange({
+      assignments: visibleAssignments,
+      displayDates,
+      fromDate: payload.fromDate,
+      fromStaffId: payload.staffId,
+      targetDate,
+      targetStaffId,
+      targetShift
+    });
+
+    if (!moveCheck.ok) {
+      window.alert(moveCheck.message);
+      setDraggingCell(null);
+      return;
+    }
+
     setAssignments((current) => {
       const next = ensureDisplayAssignments(current, displayDates, staffList);
-
-      const shiftCheck = validateShiftAssignment(
-        targetDate,
-        targetStaffId,
-        targetShift,
-        next
-      );
-
-      if (!shiftCheck.ok) {
-        window.alert(shiftCheck.message);
-        return next;
-      }
 
       next[payload.fromDate] = {
         ...next[payload.fromDate],
@@ -648,6 +793,16 @@ function App() {
           </div>
         </div>
       </section>
+
+      {!defaultValidation.ok && (
+        <section className="active-summary">
+          <article className="summary-main summary-main--danger">
+            <span>シフトルール警告</span>
+            <strong>要確認</strong>
+            <p>{defaultValidation.message}</p>
+          </article>
+        </section>
+      )}
 
       <section className="active-summary">
         <article className={`summary-main summary-main--${activeStatus.level}`}>
@@ -840,13 +995,10 @@ function App() {
             日勤・夜勤は1人、バッファーは0.5人、休みは0人として扱います。
           </p>
           <p className="note-text">
-            初期配置は、夜勤明け日勤禁止・5連勤後の勤務禁止ルールを通して生成しています。
-          </p>
-          <p className="note-text">
             夜勤の翌日は、日勤にできません。
           </p>
           <p className="note-text">
-            5連勤後は、日勤・夜勤・バッファー候補にできません。
+            5連勤後は、休日にしてください。日勤・夜勤・バッファー候補にはできません。
           </p>
           <p className="note-text">
             日勤・夜勤はそれぞれ2人未満の場合にアラートを表示します。
